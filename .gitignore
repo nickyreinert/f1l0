@@ -1,1 +1,8 @@
 .env
+
+# Local Netlify folder
+.netlify
+
+# Data exports (kept locally / in archive only)
+updated-export-*.json
+export-*.json
