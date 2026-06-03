@@ -85,8 +85,10 @@
 
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
-    window._fbAuth = getAuth(app);
-    window._fbDb = getFirestore(app);
+    const _fbAuth = getAuth(app);
+    window._fbAuth = _fbAuth;
+    const _fbDb = getFirestore(app);
+    window._fbDb = _fbDb;
 
     // ─── Merge helpers ────────────────────────────────────────────────────────────
     function _mergeHistories(local, cloud) {
