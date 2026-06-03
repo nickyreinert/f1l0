@@ -106,8 +106,7 @@
       return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
     }
 
-    // ─── Storage shim ────────────────────────────────────────────────────────────
-    // (_storageReady / _resolveStorageReady are created above, before the config fetch.)
+    // ─── Storage ─────────────────────────────────────────────────────────────────
     window.storage = {
       _uid: null,
 
@@ -121,10 +120,11 @@
         return v !== null ? { key: k, value: v } : null;
       },
 
+      // Write to localStorage + Firestore on every change
       async set(k, v) {
         localStorage.setItem("tp_" + k, v);
         const col = this._col();
-        if (col) await setDoc(doc(col, k), { value: v, ts: Date.now() }).catch(() => {});
+        if (col) setDoc(doc(col, k), { value: v, ts: Date.now() }).catch(() => {});
         return { key: k, value: v };
       },
 
@@ -144,49 +144,53 @@
         return { keys };
       },
 
-      async _pushAllToCloud() {
-        const col = this._col();
-        if (!col) return;
-        const batch = writeBatch(_fbDb);
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k?.startsWith("tp_")) {
-            batch.set(doc(col, k.slice(3)), { value: localStorage.getItem(k), ts: Date.now() });
-          }
-        }
-        await batch.commit();
-      },
-
+      // On login: load everything from Firestore into localStorage, then re-init UI
       async syncFromCloud() {
         const col = this._col();
         if (!col) return;
         try {
           const snap = await getDocs(col);
           if (snap.empty) {
-            await this._pushAllToCloud();
+            // No cloud data yet — push local up
+            const batch = writeBatch(_fbDb);
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k?.startsWith("tp_")) {
+                batch.set(doc(col, k.slice(3)), { value: localStorage.getItem(k), ts: Date.now() });
+              }
+            }
+            await batch.commit();
             return;
           }
+          // Merge: for sessions, union by date using ts to pick winner per entry
+          // For everything else, highest ts wins
           const today = new Date().toISOString().slice(0, 10);
-          snap.forEach(doc => {
-            const key    = doc.id;
-            const cldVal = doc.data().value;
+          snap.forEach(cloudDoc => {
+            const key    = cloudDoc.id;
+            const cldVal = cloudDoc.data().value;
+            const cldTs  = cloudDoc.data().ts || 0;
             const locKey = "tp_" + key;
             const locVal = localStorage.getItem(locKey);
+
             if (key === "sessions") {
-              try {
-                const loc = locVal ? JSON.parse(locVal) : [];
-                const cld = JSON.parse(cldVal);
-                // Cloud wins for past dates; local wins for today
-                const map = {};
-                cld.forEach(s => { map[s.date] = s; });
-                loc.forEach(s => { if (s.date === today) map[s.date] = s; });
-                const merged = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
-                localStorage.setItem(locKey, JSON.stringify(merged));
-              } catch {}
-            } else if (!locVal) {
-              localStorage.setItem(locKey, cldVal);
+              const loc = locVal ? JSON.parse(locVal) : [];
+              const cld = JSON.parse(cldVal);
+              // Union by date — for today local wins, for past dates highest ts wins
+              const map = {};
+              cld.forEach(s => { map[s.date] = s; });
+              loc.forEach(s => {
+                if (s.date === today || !map[s.date]) map[s.date] = s;
+              });
+              const merged = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+              localStorage.setItem(locKey, JSON.stringify(merged));
+            } else {
+              // For non-session keys: cloud wins (it's the authoritative remote copy)
+              // unless we have a newer local write (compare timestamps)
+              const locTs = parseInt(localStorage.getItem(locKey + "_ts") || "0");
+              if (!locVal || cldTs > locTs) {
+                localStorage.setItem(locKey, cldVal);
+              }
             }
-            // Other keys: local wins (most current)
           });
           window.dispatchEvent(new CustomEvent("cloudSyncComplete"));
         } catch(e) {
