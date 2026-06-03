@@ -1,0 +1,148 @@
+{
+  "cfg": {
+    "minPauseH": 4,
+    "lastDate": "2026-06-03",
+    "lastType": "A",
+    "lastTargets": {
+      "Klimmzüge": 10,
+      "Liegestütze": 10
+    }
+  },
+  "day": {
+    "date": "2026-06-03",
+    "type": "A",
+    "blocks": [
+      {
+        "exercises": [
+          {
+            "name": "Klimmzüge",
+            "target": 10,
+            "reps": [
+              8,
+              7,
+              6
+            ]
+          },
+          {
+            "name": "Liegestütze",
+            "target": 10,
+            "reps": [
+              13,
+              13,
+              13
+            ]
+          }
+        ],
+        "completedAt": null
+      }
+    ],
+    "supps": {
+      "creatine": false,
+      "midProtein": false,
+      "eveCombo": false
+    },
+    "done": true
+  },
+  "morn": {
+    "date": "2026-06-03",
+    "blocks": [
+      {
+        "exercises": [
+          {
+            "name": "Liegestütze",
+            "target": 10,
+            "reps": [
+              10,
+              10
+            ]
+          }
+        ],
+        "completedAt": null
+      }
+    ],
+    "done": false
+  },
+  "history": [
+    {
+      "date": "2026-06-01",
+      "type": "A",
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "sets": 3,
+          "reps": 21
+        },
+        {
+          "name": "Liegestütze",
+          "sets": 2,
+          "reps": 26
+        }
+      ],
+      "mornExercises": [
+        {
+          "name": "Knee Claps",
+          "sets": 1,
+          "reps": 50
+        },
+        {
+          "name": "Kniebeugen",
+          "sets": 1,
+          "reps": 50
+        },
+        {
+          "name": "Knee-2-Elbow",
+          "sets": 1,
+          "reps": 50
+        }
+      ],
+      "notes": "Supplements: Fishoil, Kreatin (Frühstück), Protein (Mittag)"
+    },
+    {
+      "date": "2026-06-02",
+      "type": "B",
+      "exercises": [],
+      "mornExercises": [
+        {
+          "name": "Knee Claps",
+          "sets": 1,
+          "reps": 50
+        },
+        {
+          "name": "Kniebeugen",
+          "sets": 1,
+          "reps": 50
+        },
+        {
+          "name": "Knee-2-Elbow",
+          "sets": 1,
+          "reps": 50
+        }
+      ],
+      "notes": "No block. Supplements: Kreatin (Frühstück), Protein (Mittag), kein Fishoil"
+    },
+    {
+      "date": "2026-06-03",
+      "type": "A",
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "sets": 3,
+          "reps": 21
+        },
+        {
+          "name": "Liegestütze",
+          "sets": 3,
+          "reps": 39
+        }
+      ],
+      "mornExercises": [
+        {
+          "name": "Liegestütze",
+          "sets": 0,
+          "reps": 0
+        }
+      ]
+    }
+  ],
+  "exportedAt": "2026-06-03T16:27:57.023Z"
+}

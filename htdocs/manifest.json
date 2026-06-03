@@ -1,6 +1,6 @@
 {
-  "name": "FiLo - Fitness Log",
-  "short_name": "FiLo",
+  "name": "F1L0 - Fitness Logger",
+  "short_name": "F1L0",
   "description": "Calisthenics tracker with RPG progression — log workouts, earn XP, grow your tree.",
   "start_url": "/",
   "scope": "/",
