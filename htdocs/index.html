@@ -1549,7 +1549,7 @@
         return () => window.removeEventListener("authStateChanged", h);
       }, []);
 
-      if (!_fbAuth) return null;
+      if (!window._fbAuth) return null;
 
       if (state.user) {
         return (
@@ -1922,7 +1922,7 @@
                   <button onClick={() => { const ph=Math.max(1,tmpPauseH); setMinPauseH(ph); setSupplements(tmpSupplements); load("cfg").then(cfg => save("cfg",{...(cfg||{}),minPauseH:ph,supplements:tmpSupplements})); setMenuOpen(false); }} style={{ background:ACC, color:BG, border:"none", padding:16, fontSize:18, fontWeight:900, letterSpacing:3, width:"100%", borderRadius:4, cursor:"pointer", ...cond }}>SPEICHERN</button>
                 </>}
                 {menuTab === "data" && <>
-                  {_fbAuth && <>
+                  {window._fbAuth && <>
                     <div style={{ ...lbl9, marginBottom:10 }}>CLOUD BACKUP</div>
                     {cloudState.user ? (
                       <div style={{ background:"#0a1a0a", border:`1px solid #1a3a1a`, borderRadius:6, padding:"14px 16px", marginBottom:24, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
