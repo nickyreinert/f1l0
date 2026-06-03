@@ -81,19 +81,9 @@
     import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
     import { getFirestore } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
-    // Firebase config from environment variables
-    const firebaseConfig = {
-      apiKey: window.__FIREBASE_API_KEY__ || "",
-      authDomain: window.__FIREBASE_AUTH_DOMAIN__ || "",
-      projectId: window.__FIREBASE_PROJECT_ID__ || "",
-      storageBucket: window.__FIREBASE_STORAGE_BUCKET__ || "",
-      messagingSenderId: window.__FIREBASE_MESSAGING_SENDER_ID__ || "",
-      appId: window.__FIREBASE_APP_ID__ || ""
-    };
-
+    const firebaseConfig = await fetch("/.netlify/functions/firebase-config").then(r => r.json());
 
     // Initialize Firebase
-
     const app = initializeApp(firebaseConfig);
     window._fbAuth = getAuth(app);
     window._fbDb = getFirestore(app);
