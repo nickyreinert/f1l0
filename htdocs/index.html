@@ -204,8 +204,16 @@
     // ─── Auth state ───────────────────────────────────────────────────────────────
     window._authState = { user: null, syncing: false };
 
-    let _resolveSyncReady;
-    window._syncReady = new Promise(r => { _resolveSyncReady = r; });
+    // _syncReady resolves once we know the FINAL auth state and (if logged in)
+    // the first cloud sync has finished. The initial onAuthStateChanged often
+    // fires with user=null before the persisted session is restored, so we must
+    // not resolve on that first null — we wait for the real resolution.
+    let _resolveSyncReady, _syncReadyResolved = false;
+    window._syncReady = new Promise(r => {
+      _resolveSyncReady = () => { if (!_syncReadyResolved) { _syncReadyResolved = true; r(); } };
+    });
+    // Fallback: if auth never restores a user within 1.5s, unblock the UI anyway.
+    const _syncReadyFallback = setTimeout(() => _resolveSyncReady(), 1500);
 
     if (_fbAuth) {
       _fbAuth.onAuthStateChanged(async (user) => {
@@ -214,6 +222,7 @@
         window._authState.syncing = !!user;
         window.dispatchEvent(new CustomEvent("authStateChanged", { detail: { ...window._authState } }));
         if (user) {
+          clearTimeout(_syncReadyFallback);
           const skipSync = sessionStorage.getItem("skipCloudSync") === "1";
           console.log("[auth] user:", user.email, "skipSync:", skipSync);
           if (skipSync) {
@@ -224,8 +233,10 @@
           }
           window._authState.syncing = false;
           window.dispatchEvent(new CustomEvent("authStateChanged", { detail: { ...window._authState } }));
+          _resolveSyncReady(); // real user + sync done → unblock and re-init
         }
-        _resolveSyncReady();
+        // user=null: do NOT resolve here — let the fallback timer handle the
+        // genuinely-logged-out case, so we never race ahead of a restoring session.
       });
     } else {
       _resolveSyncReady();
@@ -1603,7 +1614,9 @@
             const mornExs = mornNames.length ? mkExFromTargets(mornNames, lt) : [mkEx("Liegestütze", lt["Liegestütze"]?.[0] ?? 10)];
             today = mkSession(t, nt, trainExs, mornExs);
             const next = [...prior, today];
-            await save("sessions", next);
+            // Only persist a freshly-created default session once the user has
+            // actually interacted; persisting here would push a blank today over
+            // good cloud data before sync. Keep it in React state only for now.
             setSessions(next);
           } else {
             setSessions(all);
@@ -1622,6 +1635,10 @@
 
       useEffect(() => {
         initApp();
+        // Re-init if a later cloud sync brings down newer data
+        const onSync = () => initApp();
+        window.addEventListener("cloudSyncComplete", onSync);
+        return () => window.removeEventListener("cloudSyncComplete", onSync);
       }, [initApp]);
 
       const persistToday = async (patch) => {
