@@ -190,7 +190,7 @@
             }
             // Other keys: local wins — today's data is always most current
           });
-          if (changes > 0) window.location.reload();
+          window.dispatchEvent(new CustomEvent("cloudSyncComplete"));
         } catch(e) {
           console.warn("Cloud sync error:", e);
         }
@@ -1563,8 +1563,7 @@
         setRpgSnap(snap);
       }, []);
 
-      useEffect(() => {
-        (async () => {
+      const initApp = useCallback(async () => {
           const cfg = await load("cfg") || {};
           const rawAll = await load("sessions") || [];
           const all = rawAll.map(migrateSession);
@@ -1610,8 +1609,14 @@
 
           await refreshSnap();
           setReady(true);
-        })();
       }, []);
+
+      useEffect(() => {
+        initApp();
+        const onSync = () => initApp();
+        window.addEventListener("cloudSyncComplete", onSync);
+        return () => window.removeEventListener("cloudSyncComplete", onSync);
+      }, [initApp]);
 
       const persistToday = async (patch) => {
         const t = todayStr();
