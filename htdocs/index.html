@@ -1,0 +1,2150 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+  <!-- PWA core -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Training" />
+  <meta name="theme-color" content="#080808" />
+  <meta name="description" content="Calisthenics tracker with RPG progression — log workouts, earn XP, grow your tree." />
+
+  <!-- Icons -->
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+
+  <!-- iOS splash / tinting -->
+  <meta name="msapplication-TileColor" content="#080808" />
+  <meta name="msapplication-TileImage" content="icon-192.png" />
+
+  <title>Training Plan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #080808; color: #f0f0ed; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+    select option { background: #111; }
+
+    @keyframes levelUp {
+      0%   { transform: scale(0.6) translateY(20px); opacity: 0; }
+      60%  { transform: scale(1.08) translateY(-4px); opacity: 1; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    @keyframes achievementSlide {
+      0%   { transform: translateY(-80px); opacity: 0; }
+      15%  { transform: translateY(0); opacity: 1; }
+      80%  { transform: translateY(0); opacity: 1; }
+      100% { transform: translateY(-80px); opacity: 0; }
+    }
+    @keyframes xpPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(184,245,0,0.6); }
+      70%  { box-shadow: 0 0 0 10px rgba(184,245,0,0); }
+      100% { box-shadow: 0 0 0 0 rgba(184,245,0,0); }
+    }
+    @keyframes treeSway {
+      0%,100% { transform: rotate(0deg); transform-origin: bottom center; }
+      25%      { transform: rotate(0.8deg); transform-origin: bottom center; }
+      75%      { transform: rotate(-0.8deg); transform-origin: bottom center; }
+    }
+    @keyframes sparkle {
+      0%   { opacity: 1; transform: scale(1) translateY(0); }
+      100% { opacity: 0; transform: scale(0) translateY(-30px); }
+    }
+    .tree-sway { animation: treeSway 4s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase compat SDK — config keys are intentionally public; security = Firestore Rules -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <script type="module">
+
+    // Import the functions you need from the SDKs you need
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+    // Firebase config from environment variables
+    const firebaseConfig = {
+      apiKey: window.__FIREBASE_API_KEY__ || "",
+      authDomain: window.__FIREBASE_AUTH_DOMAIN__ || "",
+      projectId: window.__FIREBASE_PROJECT_ID__ || "",
+      storageBucket: window.__FIREBASE_STORAGE_BUCKET__ || "",
+      messagingSenderId: window.__FIREBASE_MESSAGING_SENDER_ID__ || "",
+      appId: window.__FIREBASE_APP_ID__ || ""
+    };
+
+
+    // Initialize Firebase
+
+    const app = initializeApp(firebaseConfig);
+    window._fbAuth = getAuth(app);
+    window._fbDb = getFirestore(app);
+
+    // ─── Merge helpers ────────────────────────────────────────────────────────────
+    function _mergeHistories(local, cloud) {
+      if (!Array.isArray(local)) return Array.isArray(cloud) ? cloud : [];
+      if (!Array.isArray(cloud)) return local;
+      const map = {};
+      [...cloud, ...local].forEach(e => { if (e?.date) map[e.date] = e; });
+      return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    // ─── Storage shim ────────────────────────────────────────────────────────────
+    window.storage = {
+      _uid: null,
+
+      _col() {
+        if (!_fbDb || !this._uid) return null;
+        return _fbDb.collection("users").doc(this._uid).collection("data");
+      },
+
+      async get(k) {
+        const v = localStorage.getItem("tp_" + k);
+        return v !== null ? { key: k, value: v } : null;
+      },
+
+      async set(k, v) {
+        localStorage.setItem("tp_" + k, v);
+        const col = this._col();
+        if (col) col.doc(k).set({ value: v, ts: Date.now() }).catch(() => {});
+        return { key: k, value: v };
+      },
+
+      async delete(k) {
+        localStorage.removeItem("tp_" + k);
+        const col = this._col();
+        if (col) col.doc(k).delete().catch(() => {});
+        return { key: k, deleted: true };
+      },
+
+      async list(prefix) {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith("tp_" + (prefix || ""))) keys.push(k.slice(3));
+        }
+        return { keys };
+      },
+
+      async _pushAllToCloud() {
+        const col = this._col();
+        if (!col) return;
+        const batch = _fbDb.batch();
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k?.startsWith("tp_")) {
+            batch.set(col.doc(k.slice(3)), { value: localStorage.getItem(k), ts: Date.now() });
+          }
+        }
+        await batch.commit();
+      },
+
+      async syncFromCloud() {
+        const col = this._col();
+        if (!col) return;
+        try {
+          const snap = await col.get();
+          if (snap.empty) {
+            // First login — push local data up as initial backup
+            await this._pushAllToCloud();
+            return;
+          }
+          let changes = 0;
+          snap.forEach(doc => {
+            const key    = doc.id;
+            const cldVal = doc.data().value;
+            const locKey = "tp_" + key;
+            const locVal = localStorage.getItem(locKey);
+            if (!locVal) {
+              // Key missing locally → restore from cloud
+              localStorage.setItem(locKey, cldVal);
+              changes++;
+            } else if (key === "history") {
+              try {
+                const loc    = JSON.parse(locVal);
+                const cld    = JSON.parse(cldVal);
+                const merged = _mergeHistories(loc, cld);
+                if (merged.length > (loc?.length || 0)) {
+                  localStorage.setItem(locKey, JSON.stringify(merged));
+                  changes++;
+                }
+              } catch {}
+            }
+            // Other keys: local wins — today's data is always most current
+          });
+          if (changes > 0) window.location.reload();
+        } catch(e) {
+          console.warn("Cloud sync error:", e);
+        }
+      }
+    };
+
+    // ─── Auth state ───────────────────────────────────────────────────────────────
+    window._authState = { user: null, syncing: false };
+
+    if (_fbAuth) {
+      _fbAuth.onAuthStateChanged(async (user) => {
+        window.storage._uid       = user?.uid || null;
+        window._authState.user    = user;
+        window._authState.syncing = !!user;
+        window.dispatchEvent(new CustomEvent("authStateChanged", { detail: { ...window._authState } }));
+        if (user) {
+          await window.storage.syncFromCloud();
+          window._authState.syncing = false;
+          window.dispatchEvent(new CustomEvent("authStateChanged", { detail: { ...window._authState } }));
+        }
+      });
+    }
+
+    window._signInWithGoogle = async () => {
+      if (!_fbAuth) return;
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(_fbAuth, provider);
+    };
+
+    window._signOut = async () => {
+      if (!_fbAuth) return;
+      await signOut(_fbAuth);
+      window.storage._uid = null;
+    };
+  </script>
+
+  <script>
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // GAMIFICATION ENGINE
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  // ─── StorageManager ──────────────────────────────────────────────────────────
+  window.StorageManager = {
+    async get(key) {
+      try {
+        const r = await window.storage.get("rpg_" + key);
+        return r ? JSON.parse(r.value) : null;
+      } catch { return null; }
+    },
+    async set(key, val) {
+      try { await window.storage.set("rpg_" + key, JSON.stringify(val)); } catch {}
+    },
+    async getAll() {
+      const keys = ["xp","level","streaks","recovery","achievements","exerciseHistory","statistics"];
+      const out = {};
+      for (const k of keys) { out[k] = await this.get(k); }
+      return out;
+    }
+  };
+
+  // ─── XPManager ───────────────────────────────────────────────────────────────
+  window.XPManager = {
+    XP_VALUES: {
+      workout:              50,
+      morning:              20,
+      weeklyConsistency:   200,
+      pr:                   50,
+      improvementSmall:      5,
+      improvementModerate:  15,
+      improvementMajor:     25,
+    },
+
+    async getState() {
+      return await StorageManager.get("xp") || { total: 0, history: [] };
+    },
+
+    async award(amount, reason) {
+      const state = await this.getState();
+      state.total += amount;
+      state.history.push({ amount, reason, date: new Date().toISOString().slice(0,10), ts: Date.now() });
+      if (state.history.length > 500) state.history = state.history.slice(-500);
+      await StorageManager.set("xp", state);
+      return state.total;
+    },
+
+    async getTotal() {
+      const s = await this.getState();
+      return s.total;
+    }
+  };
+
+  // ─── LevelManager ────────────────────────────────────────────────────────────
+  window.LevelManager = {
+    calcLevel(totalXP) {
+      return Math.floor(Math.sqrt(totalXP / 100)) + 1;
+    },
+
+    xpForLevel(level) {
+      return Math.pow(level - 1, 2) * 100;
+    },
+
+    xpForNextLevel(level) {
+      return Math.pow(level, 2) * 100;
+    },
+
+    progressToNext(totalXP) {
+      const level     = this.calcLevel(totalXP);
+      const currentFloor = this.xpForLevel(level);
+      const nextFloor    = this.xpForNextLevel(level);
+      const span         = nextFloor - currentFloor;
+      const earned       = totalXP - currentFloor;
+      return { level, current: earned, needed: span, pct: Math.min(100, (earned / span) * 100) };
+    },
+
+    async getState() {
+      return await StorageManager.get("level") || { level: 1, leveledUpAt: null };
+    },
+
+    async sync(totalXP) {
+      const state     = await this.getState();
+      const newLevel  = this.calcLevel(totalXP);
+      const didLevel  = newLevel > state.level;
+      if (newLevel > state.level) {
+        state.level      = newLevel;
+        state.leveledUpAt = Date.now();
+        await StorageManager.set("level", state);
+      }
+      return { state, didLevel, newLevel };
+    },
+
+    treeStage(level) {
+      if (level < 5)  return { name: "Seed",        stage: 0 };
+      if (level < 10) return { name: "Sprout",       stage: 1 };
+      if (level < 20) return { name: "Young Tree",   stage: 2 };
+      if (level < 40) return { name: "Mature Tree",  stage: 3 };
+      if (level < 60) return { name: "Large Tree",   stage: 4 };
+      return              { name: "Ancient Tree",  stage: 5 };
+    }
+  };
+
+  // ─── StreakManager ────────────────────────────────────────────────────────────
+  window.StreakManager = {
+    async getState() {
+      return await StorageManager.get("streaks") || {
+        current: 0,
+        longest: 0,
+        totalActiveDays: 0,
+        lastActiveDate: null,
+        activeDates: []
+      };
+    },
+
+    async recordActiveDay(dateStr) {
+      const state  = await this.getState();
+      const recovery = await RecoveryManager.getState();
+
+      if (state.activeDates.includes(dateStr)) return { state, wasNew: false };
+
+      state.activeDates.push(dateStr);
+      if (state.activeDates.length > 1000) state.activeDates = state.activeDates.slice(-1000);
+
+      const yesterday = this._offsetDate(dateStr, -1);
+      const dayBefore  = this._offsetDate(dateStr, -2);
+
+      const wasActiveYesterday = state.activeDates.includes(yesterday);
+      const wasActiveDay2      = state.activeDates.includes(dayBefore);
+      const recoveryUsedYday   = (recovery.usedDates || []).includes(yesterday);
+      const recoveryUsedDay2   = (recovery.usedDates || []).includes(dayBefore);
+
+      if (wasActiveYesterday || recoveryUsedYday) {
+        state.current++;
+      } else if (wasActiveDay2 && recoveryUsedYday) {
+        state.current++;
+      } else {
+        state.current = 1;
+      }
+
+      state.longest        = Math.max(state.longest, state.current);
+      state.totalActiveDays = (state.totalActiveDays || 0) + 1;
+      state.lastActiveDate  = dateStr;
+
+      await StorageManager.set("streaks", state);
+      return { state, wasNew: true };
+    },
+
+    _offsetDate(dateStr, days) {
+      const d = new Date(dateStr + "T12:00:00");
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    }
+  };
+
+  // ─── RecoveryManager ─────────────────────────────────────────────────────────
+  window.RecoveryManager = {
+    MAX_RECOVERY: 2,
+    WINDOW_DAYS: 14,
+
+    async getState() {
+      return await StorageManager.get("recovery") || {
+        usedDates: [],
+        totalUsed: 0
+      };
+    },
+
+    async useRecoveryDay(dateStr) {
+      const state   = await this.getState();
+      const streaks = await StreakManager.getState();
+
+      if (state.usedDates.includes(dateStr)) return { ok: false, reason: "already_used" };
+
+      const available = await this.getAvailable();
+      if (available <= 0) return { ok: false, reason: "none_available" };
+
+      state.usedDates.push(dateStr);
+      state.totalUsed = (state.totalUsed || 0) + 1;
+      await StorageManager.set("recovery", state);
+
+      // Extend the streak
+      if (streaks.current > 0) {
+        streaks.current++;
+        streaks.longest = Math.max(streaks.longest, streaks.current);
+        await StorageManager.set("streaks", streaks);
+      }
+
+      return { ok: true };
+    },
+
+    async getAvailable() {
+      const state   = await this.getState();
+      const cutoff  = new Date();
+      cutoff.setDate(cutoff.getDate() - this.WINDOW_DAYS);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      const usedInWindow = (state.usedDates || []).filter(d => d >= cutoffStr).length;
+      return Math.max(0, this.MAX_RECOVERY - usedInWindow);
+    }
+  };
+
+  // ─── ProgressionAnalyzer ─────────────────────────────────────────────────────
+  window.ProgressionAnalyzer = {
+    async getHistory() {
+      return await StorageManager.get("exerciseHistory") || {};
+    },
+
+    async recordSession(exerciseName, value, metric, date) {
+      const hist = await this.getHistory();
+      if (!hist[exerciseName]) hist[exerciseName] = [];
+      hist[exerciseName].push({ value, metric, date, ts: Date.now() });
+      if (hist[exerciseName].length > 500) hist[exerciseName] = hist[exerciseName].slice(-500);
+      await StorageManager.set("exerciseHistory", hist);
+    },
+
+    async analyze(exerciseName, currentValue) {
+      const hist       = await this.getHistory();
+      const sessions   = (hist[exerciseName] || []).slice(0, -1); // exclude just-recorded
+      if (sessions.length === 0) return { isPR: true, improvement: null, xpBonus: XPManager.XP_VALUES.pr };
+
+      const allVals   = sessions.map(s => s.value);
+      const pr        = Math.max(...allVals);
+      const isPR      = currentValue > pr;
+
+      // Recent 30-day avg
+      const cutoff    = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      const recent    = sessions.filter(s => s.date >= cutoffStr).map(s => s.value);
+      const recentAvg = recent.length > 0 ? recent.reduce((a,b) => a+b, 0) / recent.length : null;
+
+      if (isPR) {
+        return { isPR: true, improvement: recentAvg ? ((currentValue - recentAvg) / recentAvg) * 100 : null,
+                 xpBonus: XPManager.XP_VALUES.pr };
+      }
+
+      if (recentAvg !== null) {
+        const pct = ((currentValue - recentAvg) / recentAvg) * 100;
+        if (pct >= 20)  return { isPR: false, improvement: pct, xpBonus: XPManager.XP_VALUES.improvementMajor };
+        if (pct >= 10)  return { isPR: false, improvement: pct, xpBonus: XPManager.XP_VALUES.improvementModerate };
+        if (pct >= 5)   return { isPR: false, improvement: pct, xpBonus: XPManager.XP_VALUES.improvementSmall };
+      }
+
+      return { isPR: false, improvement: null, xpBonus: 0 };
+    },
+
+    async getBest30Days(exerciseName) {
+      const hist    = await this.getHistory();
+      const sessions = hist[exerciseName] || [];
+      const cutoff  = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      const recent  = sessions.filter(s => s.date >= cutoffStr).map(s => s.value);
+      return recent.length > 0 ? Math.max(...recent) : null;
+    },
+
+    async getAllTimePR(exerciseName) {
+      const hist   = await this.getHistory();
+      const vals   = (hist[exerciseName] || []).map(s => s.value);
+      return vals.length > 0 ? Math.max(...vals) : null;
+    }
+  };
+
+  // ─── StatisticsManager ───────────────────────────────────────────────────────
+  window.StatisticsManager = {
+    async getState() {
+      return await StorageManager.get("statistics") || {
+        totalXP: 0,
+        totalWorkouts: 0,
+        totalActiveDays: 0,
+        totalMinutes: 0,
+        totalReps: 0,
+        totalDistance: 0,
+        totalPRs: 0,
+        totalRecoveryDaysUsed: 0,
+        exerciseTotals: {}
+      };
+    },
+
+    async record({ xpEarned, reps, exerciseName, isPR, isMorning }) {
+      const stats = await this.getState();
+      stats.totalXP          = (stats.totalXP || 0) + (xpEarned || 0);
+      stats.totalReps        = (stats.totalReps || 0) + (reps || 0);
+      if (isPR) stats.totalPRs = (stats.totalPRs || 0) + 1;
+      if (exerciseName && reps) {
+        if (!stats.exerciseTotals) stats.exerciseTotals = {};
+        stats.exerciseTotals[exerciseName] = (stats.exerciseTotals[exerciseName] || 0) + reps;
+      }
+      await StorageManager.set("statistics", stats);
+      return stats;
+    },
+
+    async recordWorkoutComplete(isMorning) {
+      const stats = await this.getState();
+      if (isMorning) {
+        // morning counted in active days
+      } else {
+        stats.totalWorkouts = (stats.totalWorkouts || 0) + 1;
+      }
+      await StorageManager.set("statistics", stats);
+    },
+
+    async recordActiveDayComplete() {
+      const stats = await this.getState();
+      stats.totalActiveDays = (stats.totalActiveDays || 0) + 1;
+      await StorageManager.set("statistics", stats);
+    },
+
+    async addXP(amount) {
+      const stats = await this.getState();
+      stats.totalXP = (stats.totalXP || 0) + amount;
+      await StorageManager.set("statistics", stats);
+    }
+  };
+
+  // ─── AchievementManager ──────────────────────────────────────────────────────
+  window.AchievementManager = {
+    DEFINITIONS: [
+      // Consistency
+      { id: "first_workout",    label: "First Step",         desc: "Logged your first workout",          icon: "🏋️", hidden: false, check: (s) => s.totalWorkouts >= 1 },
+      { id: "streak_7",         label: "7-Day Streak",       desc: "7 consecutive active days",          icon: "🔥", hidden: false, check: (_, str) => str.current >= 7 || str.longest >= 7 },
+      { id: "streak_30",        label: "30-Day Streak",      desc: "30 consecutive active days",         icon: "💫", hidden: false, check: (_, str) => str.current >= 30 || str.longest >= 30 },
+      { id: "streak_100",       label: "Century",            desc: "100 consecutive active days",        icon: "👑", hidden: false, check: (_, str) => str.current >= 100 || str.longest >= 100 },
+      // Progress
+      { id: "first_pr",         label: "Personal Best",      desc: "First personal record",              icon: "⭐", hidden: false, check: (s) => s.totalPRs >= 1 },
+      { id: "pr_10",            label: "10 Records",         desc: "Smashed 10 personal records",        icon: "🌟", hidden: false, check: (s) => s.totalPRs >= 10 },
+      { id: "pr_50",            label: "50 Records",         desc: "50 personal records broken",         icon: "✨", hidden: true,  check: (s) => s.totalPRs >= 50 },
+      // Volume
+      { id: "pushups_1k",       label: "Push-up Thousand",   desc: "1,000 total pushups",                icon: "💪", hidden: false, check: (s) => (s.exerciseTotals?.["Liegestütze"] || 0) >= 1000 },
+      { id: "pushups_10k",      label: "Push-up Legend",     desc: "10,000 total pushups",               icon: "🦾", hidden: true,  check: (s) => (s.exerciseTotals?.["Liegestütze"] || 0) >= 10000 },
+      { id: "squats_1k",        label: "Squat Master",       desc: "1,000 total squats",                 icon: "🦵", hidden: false, check: (s) => (s.exerciseTotals?.["Kniebeugen"] || 0) >= 1000 },
+      { id: "reps_10k",         label: "Volume King",        desc: "10,000 total reps",                  icon: "🏆", hidden: true,  check: (s) => s.totalReps >= 10000 },
+      // Levels
+      { id: "level_5",          label: "Level 5",            desc: "Reached level 5 — Sprout",           icon: "🌱", hidden: false, check: (_, __, lv) => lv >= 5 },
+      { id: "level_10",         label: "Level 10",           desc: "Reached level 10 — Young Tree",      icon: "🌿", hidden: false, check: (_, __, lv) => lv >= 10 },
+      { id: "level_25",         label: "Level 25",           desc: "Reached level 25 — Mature Tree",     icon: "🌳", hidden: false, check: (_, __, lv) => lv >= 25 },
+      { id: "level_50",         label: "Level 50",           desc: "Reached level 50 — Large Tree",      icon: "🌲", hidden: true,  check: (_, __, lv) => lv >= 50 },
+      // Dedication
+      { id: "active_30",        label: "Month Warrior",      desc: "30 total active days",               icon: "📅", hidden: false, check: (s) => s.totalActiveDays >= 30 },
+      { id: "active_100",       label: "100 Days",           desc: "100 total active days",              icon: "💯", hidden: false, check: (s) => s.totalActiveDays >= 100 },
+      { id: "active_365",       label: "One Year",           desc: "365 total active days",              icon: "🗓️", hidden: true,  check: (s) => s.totalActiveDays >= 365 },
+    ],
+
+    async getState() {
+      return await StorageManager.get("achievements") || { unlocked: {}, history: [] };
+    },
+
+    async check(stats, streaks, level) {
+      const state  = await this.getState();
+      const newly  = [];
+      for (const def of this.DEFINITIONS) {
+        if (state.unlocked[def.id]) continue;
+        if (def.check(stats, streaks, level)) {
+          state.unlocked[def.id] = Date.now();
+          state.history.push({ id: def.id, unlockedAt: Date.now(), date: new Date().toISOString().slice(0,10) });
+          newly.push(def);
+        }
+      }
+      if (newly.length > 0) await StorageManager.set("achievements", state);
+      return { state, newly };
+    },
+
+    getDefinition(id) {
+      return this.DEFINITIONS.find(d => d.id === id);
+    }
+  };
+
+  // ─── Main Gamification Orchestrator ──────────────────────────────────────────
+  window.Gamification = {
+    async processWorkoutComplete({ exerciseSessions, isMorning, date }) {
+      const today    = date || new Date().toISOString().slice(0, 10);
+      const slotKey  = today + (isMorning ? ":morning" : ":training");
+
+      // Guard: only process each slot once per day
+      const processed = await StorageManager.get("processedSlots") || [];
+      if (processed.includes(slotKey)) {
+        return { events: [], totalXP: 0, newTotal: await XPManager.getTotal(), newLevel: (await LevelManager.getState()).level };
+      }
+      processed.push(slotKey);
+      if (processed.length > 200) processed.splice(0, processed.length - 200);
+      await StorageManager.set("processedSlots", processed);
+
+      const events   = [];
+      let totalXP    = 0;
+      let newPRs     = 0;
+
+      // 1. Award base XP
+      const baseXP = isMorning ? XPManager.XP_VALUES.morning : XPManager.XP_VALUES.workout;
+      totalXP += baseXP;
+      events.push({ type: "xp", amount: baseXP, reason: isMorning ? "Frühsport" : "Training" });
+
+      // 2. Analyze exercise progressions
+      for (const { name, reps } of (exerciseSessions || [])) {
+        if (!name || !reps || reps <= 0) continue;
+        const analysis = await ProgressionAnalyzer.analyze(name, reps);
+        await ProgressionAnalyzer.recordSession(name, reps, "reps", today);
+
+        if (analysis.xpBonus > 0) {
+          totalXP += analysis.xpBonus;
+          events.push({ type: analysis.isPR ? "pr" : "improvement", name, reps, analysis });
+          if (analysis.isPR) newPRs++;
+        }
+
+        await StatisticsManager.record({ reps, exerciseName: name, isPR: analysis.isPR });
+      }
+
+      // 3. Award XP
+      const newTotal = await XPManager.award(totalXP, "workout");
+      await StatisticsManager.addXP(totalXP);
+
+      // 4. Level sync
+      const { didLevel, newLevel } = await LevelManager.sync(newTotal);
+      if (didLevel) events.push({ type: "levelUp", level: newLevel });
+
+      // 5. Streak
+      const { wasNew } = await StreakManager.recordActiveDay(today);
+
+      // 6. Weekly consistency check
+      if (!isMorning && wasNew) {
+        const streakState = await StreakManager.getState();
+        if (streakState.current > 0 && streakState.current % 7 === 0) {
+          const bonusXP = XPManager.XP_VALUES.weeklyConsistency;
+          await XPManager.award(bonusXP, "weekly_consistency");
+          await StatisticsManager.addXP(bonusXP);
+          totalXP += bonusXP;
+          events.push({ type: "weeklyBonus", amount: bonusXP });
+        }
+      }
+
+      // 7. Record workout
+      await StatisticsManager.recordWorkoutComplete(isMorning);
+      if (!isMorning) await StatisticsManager.recordActiveDayComplete();
+
+      // 8. Check achievements
+      const stats   = await StatisticsManager.getState();
+      const streaks = await StreakManager.getState();
+      const { newly } = await AchievementManager.check(stats, streaks, newLevel);
+      if (newly.length > 0) events.push({ type: "achievements", list: newly });
+
+      return { events, totalXP, newTotal, newLevel };
+    },
+
+    async getSnapshot() {
+      const [xpState, levelState, streakState, recoveryState, achState, stats] = await Promise.all([
+        XPManager.getState(),
+        LevelManager.getState(),
+        StreakManager.getState(),
+        RecoveryManager.getState(),
+        AchievementManager.getState(),
+        StatisticsManager.getState()
+      ]);
+      const total     = xpState.total || 0;
+      const level     = LevelManager.calcLevel(total);
+      const progress  = LevelManager.progressToNext(total);
+      const available = await RecoveryManager.getAvailable();
+      return { xpState, level, progress, streakState, recoveryState, available, achState, stats };
+    }
+  };
+  </script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ─── Storage ────────────────────────────────────────────────────────────────
+    async function load(key) {
+      try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : null; }
+      catch { return null; }
+    }
+    async function save(key, val) {
+      try { await window.storage.set(key, JSON.stringify(val)); } catch {}
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────────────────────
+    function todayStr() { return new Date().toISOString().slice(0, 10); }
+    function yesterdayStr() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+    function fmtDate(s) { return new Date(s + "T12:00:00").toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" }); }
+    function computeType(ld, lt) { return (!ld || ld !== yesterdayStr()) ? "A" : (lt === "A" ? "B" : "A"); }
+    function fmtMs(ms) { const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000); return h > 0 ? `${h}h ${m}m` : `${m}m`; }
+    function dateOffsetStr(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
+
+    // ─── Stats helpers ───────────────────────────────────────────────────────────
+    function aggregateExercises(blocks) {
+      const map = {};
+      (blocks || []).forEach(b => b.exercises.forEach(ex => {
+        if (!map[ex.name]) map[ex.name] = { name: ex.name, sets: 0, reps: 0 };
+        const repsArr = Array.isArray(ex.reps) ? ex.reps : [];
+        const sets = repsArr.filter(v => typeof v === 'number' ? v > 0 : v).length;
+        const totalReps = repsArr.reduce((s,v) => s + (typeof v === 'number' ? v : (v ? ex.target : 0)), 0);
+        map[ex.name].sets += sets;
+        map[ex.name].reps += totalReps;
+      }));
+      return Object.values(map);
+    }
+    function calcStreak(history) {
+      if (!history.length) return { cur: 0, best: 0 };
+      const dates = [...new Set(history.map(e => e.date))].sort((a,b) => b.localeCompare(a));
+      let cur = 0, best = 0, run = 0;
+      let expected = dates[0] === todayStr() ? todayStr() : yesterdayStr();
+      for (const d of dates) {
+        if (d !== expected) { best = Math.max(best, run); run = 0; expected = d; }
+        run++;
+        if (d === dates[0]) cur = run;
+        const dd = new Date(expected + "T12:00:00"); dd.setDate(dd.getDate() - 1);
+        expected = dd.toISOString().slice(0, 10);
+      }
+      return { cur, best: Math.max(best, run) };
+    }
+    function calcTopExercises(history) {
+      const cnt = {};
+      history.forEach(e => [...(e.exercises||[]), ...(e.mornExercises||[])].forEach(ex => {
+        if (!cnt[ex.name]) cnt[ex.name] = { sets: 0, reps: 0 };
+        cnt[ex.name].sets += ex.sets || 0;
+        cnt[ex.name].reps += ex.reps || 0;
+      }));
+      return Object.entries(cnt).sort((a,b) => b[1].reps - a[1].reps).slice(0, 8);
+    }
+    function calcExerciseProgression(history, name) {
+      const sessions = [];
+      [...history].sort((a,b) => a.date.localeCompare(b.date)).forEach(e => {
+        const all = [...(e.exercises||[]), ...(e.mornExercises||[])];
+        const found = all.find(ex => ex.name === name);
+        if (found) sessions.push({ date: e.date, reps: found.reps || 0 });
+      });
+      return sessions.slice(-10);
+    }
+    function calcWeeklyVolume(history) {
+      const wks = {};
+      history.forEach(e => {
+        const d = new Date(e.date + "T12:00:00"); d.setDate(d.getDate() - d.getDay());
+        const k = d.toISOString().slice(0, 10);
+        const v = [...(e.exercises||[]), ...(e.mornExercises||[])].reduce((a,ex) => a + (ex.reps||0), 0);
+        wks[k] = (wks[k] || 0) + v;
+      });
+      return Object.entries(wks).sort((a,b) => a[0].localeCompare(b[0])).slice(-10);
+    }
+    function calcLast28(history) {
+      const map = {}; history.forEach(e => { map[e.date] = e; });
+      return Array.from({ length: 28 }, (_,i) => ({ date: dateOffsetStr(27-i), entry: map[dateOffsetStr(27-i)] || null }));
+    }
+
+    // ─── Exercise categories ─────────────────────────────────────────────────────
+    const EXERCISE_CATEGORIES = {
+      "Zug":      ["Klimmzüge", "Rudern (Tisch)", "Muscle-ups", "Beinheben (hängend)"],
+      "Druck":    ["Liegestütze", "Pike Push-ups", "Handstand Push-ups", "Dips", "Trizeps-Dips"],
+      "Beine":    ["Kniebeugen", "Ausfallschritte"],
+      "Kern":     ["Crunches", "Beinheben", "Plank (Sätze)", "L-Sit"],
+      "Komplett": ["Burpees", "Mountain Climbers"],
+    };
+
+    // ─── Data shapes ─────────────────────────────────────────────────────────────
+    const mkEx  = (name = "Liegestütze", t = 10) => ({ name, target: t, reps: [t] });
+    const mkBlk = (name, t) => ({ exercises: [mkEx(name, t)], completedAt: null });
+    const mkSup = () => ({ creatine: false, midProtein: false, eveCombo: false });
+
+    // ─── Tokens ──────────────────────────────────────────────────────────────────
+    const ACC = "#b8f500", RED = "#ff5555", BG = "#080808", CARD = "#111", BDR = "#2a2a2a";
+    const GOLD = "#ffd700", PURPLE = "#9b59b6";
+    const mono = { fontFamily: "'JetBrains Mono', monospace" };
+    const cond = { fontFamily: "'Barlow Condensed', sans-serif" };
+    const lbl9 = { fontSize: 9, letterSpacing: 4, color: "#888" };
+
+    // ─── Block mutators ──────────────────────────────────────────────────────────
+    const mutSetRep   = (B,bi,ei,si,v) => B.map((b,j)=>j!==bi?b:{...b,exercises:b.exercises.map((ex,k)=>k!==ei?ex:{...ex,reps:ex.reps.map((r,l)=>l===si?v:r)})});
+    const mutDelRep   = (B,bi,ei,si)   => B.map((b,j)=>j!==bi?b:{...b,exercises:b.exercises.map((ex,k)=>k!==ei?ex:{...ex,reps:ex.reps.filter((_,l)=>l!==si)})});
+    const mutComplete = (B,bi)         => B.map((b,j)=>j!==bi?b:{...b,completedAt:b.completedAt||Date.now(), exercises:b.exercises.map(ex=>({...ex,done:true}))});
+    const mutReopen   = (B,bi)         => B.map((b,j)=>j!==bi?b:{...b,completedAt:null, exercises:b.exercises.map(ex=>({...ex,done:false}))});
+    const mutEditTime = (B,bi,timeMs)  => B.map((b,j)=>j!==bi?b:{...b,completedAt:timeMs});
+    const mutAddBlk   = B              => [...B, mkBlk()];
+    const mutDelBlk   = (B,bi)         => B.filter((_,j)=>j!==bi);
+    const mutAddEx    = (B,bi)         => B.map((b,j)=>j!==bi?b:{...b,exercises:[...b.exercises,mkEx()]});
+    const mutDelEx    = (B,bi,ei)      => B.map((b,j)=>j!==bi?b:{...b,exercises:b.exercises.filter((_,k)=>k!==ei)});
+    const mutAddRep   = (B,bi,ei)      => B.map((b,j)=>j!==bi?b:{...b,exercises:b.exercises.map((ex,k)=>k!==ei?ex:{...ex,reps:[...ex.reps, ex.reps.length>0 ? ex.reps[ex.reps.length-1] : ex.target]})});
+    const mutName     = (B,bi,ei,n)    => B.map((b,j)=>j!==bi?b:{...b,exercises:b.exercises.map((ex,k)=>k!==ei?ex:{...ex,name:n})});
+    const mutTarget   = (B,bi,ei,d)    => B.map((b,j)=>j!==bi?b:{...b,exercises:b.exercises.map((ex,k)=>k!==ei?ex:{...ex,target:Math.max(1,ex.target+d)})});
+
+    // ─── Tree SVG ─────────────────────────────────────────────────────────────────
+    function TreeSVG({ stage, size = 120 }) {
+      const s = size;
+      const trees = [
+        // stage 0: Seed
+        () => (
+          <svg width={s} height={s} viewBox="0 0 100 100">
+            <ellipse cx="50" cy="72" rx="18" ry="8" fill="#1a1a00" opacity="0.5"/>
+            <ellipse cx="50" cy="68" rx="10" ry="12" fill="#3d2b1f"/>
+            <path d="M44 68 Q50 45 56 68" fill="#4a8c10" opacity="0.7"/>
+          </svg>
+        ),
+        // stage 1: Sprout
+        () => (
+          <svg width={s} height={s} viewBox="0 0 100 100" className="tree-sway">
+            <ellipse cx="50" cy="82" rx="22" ry="6" fill="#1a1a00" opacity="0.4"/>
+            <rect x="48" y="55" width="4" height="28" fill="#5c3d2e" rx="2"/>
+            <ellipse cx="50" cy="50" rx="16" ry="14" fill="#4a8c10"/>
+            <ellipse cx="50" cy="44" rx="11" ry="10" fill="#5aaa18"/>
+          </svg>
+        ),
+        // stage 2: Young Tree
+        () => (
+          <svg width={s} height={s} viewBox="0 0 100 100" className="tree-sway">
+            <ellipse cx="50" cy="88" rx="26" ry="6" fill="#1a1a00" opacity="0.4"/>
+            <rect x="46" y="52" width="8" height="38" fill="#6b4423" rx="3"/>
+            <ellipse cx="50" cy="48" rx="22" ry="18" fill="#3d7a08"/>
+            <ellipse cx="50" cy="38" rx="16" ry="14" fill="#4a8c10"/>
+            <ellipse cx="50" cy="30" rx="10" ry="10" fill="#5aaa18"/>
+          </svg>
+        ),
+        // stage 3: Mature Tree
+        () => (
+          <svg width={s} height={s} viewBox="0 0 100 100" className="tree-sway">
+            <ellipse cx="50" cy="90" rx="30" ry="6" fill="#1a1a00" opacity="0.4"/>
+            <rect x="44" y="48" width="12" height="44" fill="#7a4f2e" rx="4"/>
+            <rect x="32" y="62" width="8" height="5" fill="#7a4f2e" rx="2"/>
+            <rect x="60" y="58" width="8" height="5" fill="#7a4f2e" rx="2"/>
+            <ellipse cx="50" cy="44" rx="30" ry="22" fill="#2d6004"/>
+            <ellipse cx="50" cy="34" rx="22" ry="18" fill="#3d7a08"/>
+            <ellipse cx="50" cy="24" rx="14" ry="13" fill="#4a8c10"/>
+            <ellipse cx="38" cy="50" rx="12" ry="10" fill="#3a7505" opacity="0.8"/>
+            <ellipse cx="62" cy="48" rx="12" ry="10" fill="#3a7505" opacity="0.8"/>
+          </svg>
+        ),
+        // stage 4: Large Tree
+        () => (
+          <svg width={s} height={s} viewBox="0 0 100 100" className="tree-sway">
+            <ellipse cx="50" cy="92" rx="34" ry="7" fill="#1a1a00" opacity="0.5"/>
+            <rect x="42" y="44" width="16" height="50" fill="#8b5e3c" rx="5"/>
+            <rect x="28" y="58" width="14" height="6" fill="#8b5e3c" rx="3"/>
+            <rect x="58" y="54" width="14" height="6" fill="#8b5e3c" rx="3"/>
+            <ellipse cx="50" cy="40" rx="36" ry="26" fill="#255200"/>
+            <ellipse cx="50" cy="28" rx="26" ry="20" fill="#2d6004"/>
+            <ellipse cx="50" cy="18" rx="17" ry="15" fill="#3d7a08"/>
+            <ellipse cx="32" cy="46" rx="14" ry="12" fill="#255200" opacity="0.9"/>
+            <ellipse cx="68" cy="44" rx="14" ry="12" fill="#255200" opacity="0.9"/>
+            <ellipse cx="50" cy="10" rx="10" ry="9" fill="#4a8c10"/>
+          </svg>
+        ),
+        // stage 5: Ancient Tree
+        () => (
+          <svg width={s} height={s} viewBox="0 0 100 100" className="tree-sway">
+            <ellipse cx="50" cy="93" rx="38" ry="7" fill="#1a1a00" opacity="0.6"/>
+            <rect x="40" y="38" width="20" height="57" fill="#4a2c0a" rx="6"/>
+            <rect x="22" y="55" width="18" height="7" fill="#4a2c0a" rx="3"/>
+            <rect x="60" y="51" width="18" height="7" fill="#4a2c0a" rx="3"/>
+            <rect x="26" y="62" width="12" height="5" fill="#4a2c0a" rx="2"/>
+            <rect x="62" y="60" width="12" height="5" fill="#4a2c0a" rx="2"/>
+            <ellipse cx="50" cy="35" rx="40" ry="28" fill="#1a3d00"/>
+            <ellipse cx="50" cy="22" rx="30" ry="22" fill="#1e4d00"/>
+            <ellipse cx="50" cy="12" rx="20" ry="16" fill="#255200"/>
+            <ellipse cx="28" cy="42" rx="16" ry="14" fill="#1a3d00" opacity="0.95"/>
+            <ellipse cx="72" cy="40" rx="16" ry="14" fill="#1a3d00" opacity="0.95"/>
+            <ellipse cx="50" cy="5" rx="12" ry="10" fill="#2d6004"/>
+            <circle cx="35" cy="32" r="3" fill="#ffd700" opacity="0.6"/>
+            <circle cx="65" cy="28" r="3" fill="#ffd700" opacity="0.6"/>
+            <circle cx="50" cy="20" r="4" fill="#ffd700" opacity="0.7"/>
+            <circle cx="42" cy="40" r="2" fill="#ffd700" opacity="0.5"/>
+            <circle cx="58" cy="38" r="2" fill="#ffd700" opacity="0.5"/>
+          </svg>
+        ),
+      ];
+      return trees[Math.min(stage, trees.length - 1)]();
+    }
+
+    // ─── XP Bar ──────────────────────────────────────────────────────────────────
+    function XPBar({ progress, animate }) {
+      const [width, setWidth] = useState(animate ? 0 : progress.pct);
+      useEffect(() => {
+        if (animate) { const t = setTimeout(() => setWidth(progress.pct), 100); return () => clearTimeout(t); }
+        else setWidth(progress.pct);
+      }, [progress.pct, animate]);
+      return (
+        <div style={{ position: "relative" }}>
+          <div style={{ height: 8, background: "#1a1a1a", borderRadius: 4, overflow: "hidden", border: "1px solid #2a2a2a" }}>
+            <div style={{
+              height: "100%", borderRadius: 4,
+              background: `linear-gradient(90deg, ${ACC}, #d4ff40)`,
+              width: `${width}%`,
+              transition: "width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              boxShadow: `0 0 8px ${ACC}88`,
+            }}/>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+            <span style={{ ...mono, fontSize: 9, color: "#666" }}>{progress.current} XP</span>
+            <span style={{ ...mono, fontSize: 9, color: "#666" }}>{progress.needed} XP</span>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Level Up Overlay ────────────────────────────────────────────────────────
+    function LevelUpOverlay({ level, onDone }) {
+      const tree = window.LevelManager.treeStage(level);
+      useEffect(() => {
+        const t = setTimeout(onDone, 3500);
+        return () => clearTimeout(t);
+      }, []);
+      return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9000 }} onClick={onDone}>
+          <div style={{ animation: "levelUp 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards", textAlign: "center" }}>
+            <div style={{ ...mono, fontSize: 10, color: ACC, letterSpacing: 6, marginBottom: 12 }}>LEVEL UP</div>
+            <div style={{ fontSize: 96, fontWeight: 900, ...cond, color: ACC, letterSpacing: -4, lineHeight: 1, marginBottom: 8 }}>{level}</div>
+            <TreeSVG stage={tree.stage} size={140} />
+            <div style={{ fontSize: 22, fontWeight: 700, ...cond, color: "#ddd", marginTop: 8, letterSpacing: 2 }}>{tree.name.toUpperCase()}</div>
+            <div style={{ ...mono, fontSize: 10, color: "#666", marginTop: 16 }}>Tap to continue</div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Achievement Toast ────────────────────────────────────────────────────────
+    function AchievementToast({ achievement, onDone }) {
+      useEffect(() => {
+        const t = setTimeout(onDone, 4000);
+        return () => clearTimeout(t);
+      }, []);
+      return (
+        <div style={{
+          position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)",
+          zIndex: 8000, width: "min(480px, 100vw)", padding: "0 16px",
+          animation: "achievementSlide 4s ease forwards",
+          pointerEvents: "none",
+        }}>
+          <div style={{ background: "#1a1200", border: `1px solid ${GOLD}`, borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, marginTop: 12 }}>
+            <div style={{ fontSize: 32 }}>{achievement.icon}</div>
+            <div>
+              <div style={{ ...mono, fontSize: 9, color: GOLD, letterSpacing: 4, marginBottom: 2 }}>ACHIEVEMENT UNLOCKED</div>
+              <div style={{ fontSize: 18, fontWeight: 900, ...cond, color: "#f0f0ed" }}>{achievement.label}</div>
+              <div style={{ fontSize: 12, color: "#aaa", ...cond }}>{achievement.desc}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── XP Popup ────────────────────────────────────────────────────────────────
+    function XPPopup({ events, onDone }) {
+      useEffect(() => {
+        const t = setTimeout(onDone, 3200);
+        return () => clearTimeout(t);
+      }, []);
+      const xpEvents  = events.filter(e => e.type === "xp" || e.type === "pr" || e.type === "improvement" || e.type === "weeklyBonus");
+      const totalXP   = xpEvents.reduce((s, e) => s + (e.amount || e.analysis?.xpBonus || 0), 0);
+      return (
+        <div style={{ position: "fixed", bottom: 120, right: 20, zIndex: 7000, animation: "levelUp 0.4s ease forwards" }}>
+          <div style={{ background: "#0d1a00", border: `1px solid ${ACC}`, borderRadius: 8, padding: "12px 16px", minWidth: 160 }}>
+            <div style={{ ...mono, fontSize: 11, color: ACC, fontWeight: 700, marginBottom: 6 }}>+{totalXP} XP</div>
+            {xpEvents.map((e, i) => (
+              <div key={i} style={{ ...mono, fontSize: 9, color: "#888", marginBottom: 2 }}>
+                {e.type === "xp" && `${e.reason} +${e.amount}`}
+                {e.type === "pr" && `PR: ${e.name} +${e.analysis?.xpBonus || 50}`}
+                {e.type === "improvement" && `↑ ${e.name} +${e.analysis?.xpBonus}`}
+                {e.type === "weeklyBonus" && `Weekly Bonus +${e.amount}`}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Positive Insights ───────────────────────────────────────────────────────
+    function calcInsights(snap, history) {
+      const insights = [];
+      if (!snap) return insights;
+      const { streakState, stats } = snap;
+
+      if (streakState?.current > 0 && streakState.current === streakState.longest && streakState.current > 3) {
+        insights.push("Longest streak ever.");
+      }
+      if (stats?.totalWorkouts > 0 && stats.totalWorkouts % 10 === 0) {
+        insights.push(`${stats.totalWorkouts} workouts completed.`);
+      }
+      if (stats?.totalPRs > 0 && stats.totalPRs % 5 === 0) {
+        insights.push(`${stats.totalPRs} personal records broken.`);
+      }
+
+      // Weekly volume insight
+      if (history && history.length >= 14) {
+        const thisWeekStart = dateOffsetStr(6);
+        const lastWeekStart = dateOffsetStr(13);
+        const thisWeekReps  = history.filter(e => e.date >= thisWeekStart).reduce((s,e) => s + [...(e.exercises||[]),...(e.mornExercises||[])].reduce((a,ex) => a+(ex.reps||0),0), 0);
+        const lastWeekReps  = history.filter(e => e.date >= lastWeekStart && e.date < thisWeekStart).reduce((s,e) => s + [...(e.exercises||[]),...(e.mornExercises||[])].reduce((a,ex) => a+(ex.reps||0),0), 0);
+        if (lastWeekReps > 0 && thisWeekReps > lastWeekReps * 1.1) {
+          insights.push("Most active week in recent history.");
+        }
+      }
+
+      return insights.slice(0, 2);
+    }
+
+    // ─── RPG Panel ───────────────────────────────────────────────────────────────
+    function RPGPanel({ snap, history, animateXP }) {
+      if (!snap) return <div style={{ ...mono, fontSize: 10, color: "#555", padding: 20 }}>Loading…</div>;
+      const { level, progress, streakState, available, achState, stats } = snap;
+      const tree     = window.LevelManager.treeStage(level);
+      const insights = calcInsights(snap, history);
+      const unlocked = Object.keys(achState?.unlocked || {});
+      const allDefs  = window.AchievementManager.DEFINITIONS;
+
+      return (
+        <div style={{ paddingBottom: 20 }}>
+          {/* Tree + Level */}
+          <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 24 }}>
+            <div style={{ flexShrink: 0 }}>
+              <TreeSVG stage={tree.stage} size={100} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
+                <div style={{ fontSize: 52, fontWeight: 900, ...cond, color: ACC, lineHeight: 1, letterSpacing: -2 }}>{level}</div>
+                <div style={{ ...mono, fontSize: 10, color: "#666" }}>LEVEL</div>
+              </div>
+              <div style={{ fontSize: 13, ...cond, color: "#888", letterSpacing: 2, marginBottom: 10 }}>{tree.name.toUpperCase()}</div>
+              <XPBar progress={progress} animate={animateXP} />
+            </div>
+          </div>
+
+          {/* Insights */}
+          {insights.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              {insights.map((ins, i) => (
+                <div key={i} style={{ background: "#0d1a00", border: `1px solid #2a4a00`, borderRadius: 6, padding: "10px 14px", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: ACC, flexShrink: 0 }}/>
+                  <div style={{ ...cond, fontSize: 14, color: "#b0cc80" }}>{ins}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Streak */}
+          <div style={{ ...lbl9, marginBottom: 10 }}>STREAK</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
+            <div style={{ background: "#0a0a0a", border: `1px solid ${BDR}`, borderRadius: 6, padding: "12px 10px" }}>
+              <div style={{ ...lbl9, marginBottom: 4 }}>NOW</div>
+              <div style={{ ...mono, fontSize: 26, fontWeight: 700, color: ACC, lineHeight: 1 }}>{streakState?.current || 0}</div>
+              <div style={{ fontSize: 10, color: "#666", marginTop: 3 }}>days</div>
+            </div>
+            <div style={{ background: "#0a0a0a", border: `1px solid ${BDR}`, borderRadius: 6, padding: "12px 10px" }}>
+              <div style={{ ...lbl9, marginBottom: 4 }}>BEST</div>
+              <div style={{ ...mono, fontSize: 26, fontWeight: 700, color: "#888", lineHeight: 1 }}>{streakState?.longest || 0}</div>
+              <div style={{ fontSize: 10, color: "#666", marginTop: 3 }}>days</div>
+            </div>
+            <div style={{ background: "#0a0a0a", border: `1px solid ${BDR}`, borderRadius: 6, padding: "12px 10px" }}>
+              <div style={{ ...lbl9, marginBottom: 4 }}>REST</div>
+              <div style={{ ...mono, fontSize: 26, fontWeight: 700, color: available > 0 ? "#4a8c4a" : "#555", lineHeight: 1 }}>{available}/{window.RecoveryManager.MAX_RECOVERY}</div>
+              <div style={{ fontSize: 10, color: "#666", marginTop: 3 }}>recovery</div>
+            </div>
+          </div>
+
+          {/* Lifetime Stats */}
+          <div style={{ ...lbl9, marginBottom: 10 }}>LIFETIME</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
+            {[
+              { label: "WORKOUTS",   val: stats?.totalWorkouts || 0 },
+              { label: "ACTIVE DAYS",val: stats?.totalActiveDays || 0 },
+              { label: "TOTAL REPS", val: (stats?.totalReps || 0).toLocaleString("de") },
+              { label: "RECORDS",    val: stats?.totalPRs || 0 },
+              { label: "TOTAL XP",   val: (stats?.totalXP || 0).toLocaleString("de") },
+              { label: "RECOVERY",   val: stats?.totalRecoveryDaysUsed || 0 },
+            ].map(({ label, val }) => (
+              <div key={label} style={{ background: "#0a0a0a", border: `1px solid ${BDR}`, borderRadius: 6, padding: "12px 10px" }}>
+                <div style={{ ...lbl9, marginBottom: 4 }}>{label}</div>
+                <div style={{ ...mono, fontSize: 20, fontWeight: 700, color: ACC, lineHeight: 1 }}>{val}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Achievements */}
+          <div style={{ ...lbl9, marginBottom: 10 }}>ACHIEVEMENTS  {unlocked.length}/{allDefs.length}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {allDefs.map(def => {
+              const isUnlocked = !!achState?.unlocked?.[def.id];
+              if (!isUnlocked && def.hidden) {
+                return (
+                  <div key={def.id} style={{ background: "#0a0a0a", border: `1px solid #1a1a1a`, borderRadius: 6, padding: "12px 10px", opacity: 0.4 }}>
+                    <div style={{ fontSize: 22, marginBottom: 4 }}>?</div>
+                    <div style={{ ...cond, fontSize: 13, color: "#444" }}>Hidden</div>
+                  </div>
+                );
+              }
+              const unlockDate = isUnlocked ? new Date(achState.unlocked[def.id]).toLocaleDateString("de-DE") : null;
+              return (
+                <div key={def.id} style={{ background: isUnlocked ? "#1a1200" : "#0a0a0a", border: `1px solid ${isUnlocked ? "#4a3800" : "#1a1a1a"}`, borderRadius: 6, padding: "12px 10px", opacity: isUnlocked ? 1 : 0.35 }}>
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>{def.icon}</div>
+                  <div style={{ ...cond, fontSize: 14, fontWeight: 700, color: isUnlocked ? "#f0f0ed" : "#555", marginBottom: 2 }}>{def.label}</div>
+                  <div style={{ ...cond, fontSize: 11, color: isUnlocked ? "#aaa" : "#444", marginBottom: isUnlocked ? 4 : 0 }}>{def.desc}</div>
+                  {isUnlocked && <div style={{ ...mono, fontSize: 8, color: "#666" }}>{unlockDate}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── DialPad ─────────────────────────────────────────────────────────────────
+    function DialPad({ initialValue, onConfirm, onDelete, onClose }) {
+      const [val, setVal] = useState(String(initialValue ?? ""));
+      const press = d => setVal(v => v.length >= 4 ? v : v + d);
+      const back  = () => setVal(v => v.slice(0, -1));
+      const confirm = () => {
+        const n = parseInt(val, 10);
+        if (!isNaN(n) && n >= 1) onConfirm(n);
+        else if (val === "") onConfirm(initialValue);
+      };
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (e.key === "Escape") { e.preventDefault(); onClose(); }
+          else if (e.key === "Backspace") { e.preventDefault(); back(); }
+          else if (e.key === "Enter") { e.preventDefault(); confirm(); }
+          else if (e.key === "Delete") { e.preventDefault(); onDelete(); }
+          else if (/^\d$/.test(e.key)) { e.preventDefault(); press(e.key); }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+      }, [val]);
+      const btnStyle = (col) => ({
+        flex:1, height:64, background:"#1a1a1a", border:`1px solid #333`,
+        color: col || "#f0f0ed", fontSize:26, fontWeight:700, borderRadius:4,
+        cursor:"pointer", ...mono, minWidth:0,
+      });
+      return (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"flex-end", zIndex:2000 }} onClick={onClose}>
+          <div style={{ background:"#111", width:"100%", borderRadius:"14px 14px 0 0", padding:"20px 16px 32px" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, minHeight:56, background:"#0a0a0a", borderRadius:6, border:`1px solid #333` }}>
+              <span style={{ ...mono, fontSize:40, fontWeight:700, color: val ? "#fff" : "#555", letterSpacing:2 }}>{val || "—"}</span>
+            </div>
+            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+              {["1","2","3"].map(d => <button key={d} style={btnStyle()} onClick={() => press(d)}>{d}</button>)}
+            </div>
+            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+              {["4","5","6"].map(d => <button key={d} style={btnStyle()} onClick={() => press(d)}>{d}</button>)}
+            </div>
+            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+              {["7","8","9"].map(d => <button key={d} style={btnStyle()} onClick={() => press(d)}>{d}</button>)}
+            </div>
+            <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+              <button style={btnStyle(RED)} onClick={onDelete}>✕</button>
+              <button style={btnStyle()} onClick={() => press("0")}>0</button>
+              <button style={btnStyle("#aaa")} onClick={back}>⌫</button>
+            </div>
+            <button onClick={confirm} style={{ width:"100%", padding:16, background:ACC, color:BG, border:"none", borderRadius:4, fontSize:18, fontWeight:900, letterSpacing:3, cursor:"pointer", ...cond }}>OK</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── RepTile ─────────────────────────────────────────────────────────────────
+    function RepTile({ value, disabled, onClick }) {
+      const displayVal = typeof value === 'number' ? value : (value ? "1" : "0");
+      return (
+        <button onClick={onClick} disabled={disabled} style={{
+          width:54, height:54, borderRadius:4, flexShrink:0,
+          border:`2px solid ${ACC}`,
+          background:"#0d1a00",
+          color: ACC,
+          ...mono, fontWeight:700, fontSize:20,
+          cursor: disabled ? "default" : "pointer",
+        }}>{displayVal}</button>
+      );
+    }
+
+    // ─── AddTile ─────────────────────────────────────────────────────────────────
+    function AddTile({ onClick }) {
+      return (
+        <button onClick={onClick} style={{
+          width:54, height:54, background:"transparent", border:`2px dashed #444`,
+          color:"#aaa", borderRadius:4, cursor:"pointer", fontSize:24, lineHeight:1,
+          fontWeight:700, ...mono, flexShrink:0,
+        }}>+</button>
+      );
+    }
+
+    // ─── ExRow ───────────────────────────────────────────────────────────────────
+    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep }) {
+      const [dialIdx, setDialIdx] = useState(null);
+      const openDial = (i) => { if (!disabled) setDialIdx(i); };
+      const closeDial = () => setDialIdx(null);
+      const confirmRep = (v) => { if (dialIdx !== null) { onSetRep(dialIdx, v); setDialIdx(null); } };
+      const deleteRep = () => { if (dialIdx !== null) { onDelRep(dialIdx); setDialIdx(null); } };
+
+      useEffect(() => {
+        if (dialIdx !== null && dialIdx >= ex.reps.length) setDialIdx(null);
+      }, [ex.reps.length]);
+
+      const openNewDial = () => {
+        if (disabled) return;
+        const newIdx = ex.reps.length;
+        onAddRep();
+        setDialIdx(newIdx);
+      };
+
+      const dialInitial = dialIdx !== null
+        ? (() => {
+            const v = ex.reps[dialIdx];
+            if (typeof v === 'number') return v;
+            if (typeof v === 'boolean') return v ? ex.target : 0;
+            return ex.reps.length > 0 ? ex.reps[ex.reps.length - 1] : ex.target;
+          })()
+        : null;
+
+      return (
+        <div style={{ marginBottom:18 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
+            <button onClick={onOpenModal} disabled={disabled} style={{ flex:1, background:"#1a1a1a", border:`1px solid #333`, color: disabled ? "#555" : "#e0e0e0", padding:"9px 12px", fontSize:14, ...cond, borderRadius:3, outline:"none", textAlign:"left", cursor: disabled ? "default" : "pointer", fontWeight:500 }}>{ex.name}</button>
+            {canDelete && <button onClick={onDelete} disabled={disabled} title="Löschen" style={{ width:38, height:38, background:CARD, border:`1px solid #444`, color: disabled ? "#444" : "#ff6b6b", borderRadius:3, cursor: disabled ? "default" : "pointer", fontSize:18, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>}
+          </div>
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+            {ex.reps.map((v,i) => (
+              <RepTile key={i} value={v} disabled={disabled} onClick={() => openDial(i)} />
+            ))}
+            {!disabled && <AddTile onClick={openNewDial} />}
+          </div>
+          {dialIdx !== null && dialIdx < ex.reps.length && (
+            <DialPad
+              initialValue={dialInitial}
+              onConfirm={confirmRep}
+              onDelete={deleteRep}
+              onClose={closeDial}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // ─── ExerciseModal ───────────────────────────────────────────────────────────
+    function ExerciseModal({ open, onClose, onSelect, recentlyUsed, customExercises, onAddCustom }) {
+      const [filter, setFilter] = useState("Zug");
+      const [customName, setCustomName] = useState("");
+      useEffect(() => {
+        if (!open) return;
+        const handleKeyDown = (e) => {
+          if (e.key === "Escape") { e.preventDefault(); onClose(); }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+      }, [open]);
+      if (!open) return null;
+      const allCats = { ...EXERCISE_CATEGORIES };
+      if (customExercises.length > 0) allCats["Eigene"] = customExercises;
+      const sorted = [...(allCats[filter] || [])].sort((a,b) => {
+        const ai = recentlyUsed.indexOf(a), bi2 = recentlyUsed.indexOf(b);
+        return ai === -1 ? 1 : bi2 === -1 ? -1 : ai - bi2;
+      });
+      const handleAdd = () => {
+        if (!customName.trim()) return;
+        onAddCustom(customName.trim()); onSelect(customName.trim()); setCustomName(""); onClose();
+      };
+      return (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", display:"flex", alignItems:"flex-end", zIndex:1000 }}>
+          <div style={{ background:"#111", width:"100%", borderRadius:"14px 14px 0 0", padding:"20px", maxHeight:"85vh", overflow:"auto" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+              <div style={{ fontSize:24, fontWeight:900, ...cond }}>ÜBUNG WÄHLEN</div>
+              <button onClick={onClose} style={{ background:"none", border:"none", fontSize:32, cursor:"pointer", color:"#ccc", lineHeight:1 }}>×</button>
+            </div>
+            <div style={{ display:"flex", gap:8, marginBottom:16, overflowX:"auto", paddingBottom:2 }}>
+              {Object.keys(allCats).map(cat => (
+                <button key={cat} onClick={() => setFilter(cat)} style={{ padding:"8px 14px", background: filter===cat ? ACC : CARD, color: filter===cat ? BG : "#ccc", border:"none", borderRadius:3, cursor:"pointer", fontSize:10, letterSpacing:3, fontWeight:700, flexShrink:0, ...cond }}>
+                  {cat}
+                </button>
+              ))}
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
+              {sorted.map(ex => (
+                <button key={ex} onClick={() => { onSelect(ex); onClose(); }} style={{ padding:"16px 10px", background:CARD, border:`1px solid ${BDR}`, color:"#ddd", borderRadius:4, cursor:"pointer", fontSize:13, fontWeight:600, ...cond, minHeight:56, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center" }}>
+                  {ex}
+                </button>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <input value={customName} onChange={e => setCustomName(e.target.value)} onKeyDown={e => e.key==="Enter" && handleAdd()} placeholder="Neue Übung hinzufügen…" style={{ flex:1, padding:"10px 12px", background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ccc", borderRadius:3, outline:"none", fontSize:12 }} />
+              <button onClick={handleAdd} style={{ padding:"10px 12px", background: customName.trim() ? ACC : "#1a1a1a", color: customName.trim() ? BG : "#555", border:`1px solid ${BDR}`, borderRadius:3, cursor: customName.trim() ? "pointer" : "default", fontWeight:700, fontSize:16 }}>✓</button>
+            </div>
+            <div style={{ ...mono, fontSize:9, color:"#666", marginTop:6 }}>Neue Übungen erscheinen dauerhaft unter "Eigene"</div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── ConfirmModal ────────────────────────────────────────────────────────────
+    function ConfirmModal({ message, onConfirm, onCancel }) {
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+      }, []);
+      return (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:"0 24px" }} onClick={onCancel}>
+          <div style={{ background:"#111", border:`1px solid #333`, borderRadius:10, padding:"28px 24px", width:"100%", maxWidth:360 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:15, color:"#ddd", marginBottom:24, lineHeight:1.5, ...cond }}>{message}</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={onCancel} style={{ flex:1, padding:14, background:"transparent", border:`1px solid #444`, color:"#aaa", borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:2, ...cond }}>ABBRECHEN</button>
+              <button onClick={onConfirm} style={{ flex:1, padding:14, background:"#2a0000", border:`1px solid ${RED}`, color:RED, borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:2, fontWeight:700, ...cond }}>ZURÜCKSETZEN</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── BlocksSection ───────────────────────────────────────────────────────────
+    function BlocksSection({ blocks, sectionDone, minPauseH, isMorn, onSetRep, onDelRep, onCompleteBlock, onReopenBlock, onAddBlock, onDeleteBlock, onEditBlockTime, onAddExercise, onOpenModal, onDeleteExercise, onChangeTarget, onAddRep, onCompleteSection, onResetSection }) {
+      const [confirmReset, setConfirmReset] = useState(false);
+      const [confirmDeleteBlock, setConfirmDeleteBlock] = useState(null);
+      const [editTimeBlock, setEditTimeBlock] = useState(null);
+      const [collapsed, setCollapsed] = useState({});
+      const minMs = minPauseH * 3600000;
+      const lastDone = [...blocks].reverse().find(b => b.completedAt);
+      const allDone  = blocks.every(b => b.completedAt);
+      const msUntil  = lastDone ? Math.max(0, minMs - (Date.now() - lastDone.completedAt)) : 0;
+      const msSince  = lastDone ? Date.now() - lastDone.completedAt : null;
+      const canAdd   = allDone && !sectionDone && msUntil === 0;
+
+      const prevBlocksRef = React.useRef(blocks);
+      useEffect(() => {
+        const prev = prevBlocksRef.current;
+        blocks.forEach((block, bi) => {
+          if (block.completedAt && !prev[bi]?.completedAt) {
+            setCollapsed(c => ({ ...c, [bi]: true }));
+          }
+        });
+        prevBlocksRef.current = blocks;
+      }, [blocks]);
+
+      const toggleCollapse = (bi) => setCollapsed(c => ({ ...c, [bi]: !c[bi] }));
+      const expand = (bi) => setCollapsed(c => ({ ...c, [bi]: false }));
+
+      const iconBtn = (icon, label, onClick, opts = {}) => (
+        <button onClick={onClick} title={label} style={{
+          flex:1, width:38, height:38, background: opts.danger ? "#1a0000" : "transparent",
+          border:`1px solid ${opts.danger ? "#441111" : opts.dim ? "#1a1a1a" : "#2a2a2a"}`,
+          color: opts.danger ? "#884444" : opts.dim ? "#444" : "#888",
+          borderRadius:4, cursor: opts.dim ? "default" : "pointer",
+          fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1,
+        }}>
+          {icon}
+        </button>
+      );
+
+      return (
+        <div>
+          {blocks.map((block, bi) => {
+            const isLast    = bi === blocks.length - 1;
+            const blkDone   = !!block.completedAt;
+            const isCollapsed = blkDone && !!collapsed[bi];
+            const disabled  = sectionDone;
+            const allSets   = block.exercises.every(ex => ex.reps.length > 0);
+            return (
+              <div key={bi}>
+                <div style={{ background:CARD, border:`1px solid ${blkDone ? "#1a1a1a" : BDR}`, borderRadius:6, marginBottom:12, overflow:"hidden", opacity: blkDone ? 0.6 : 1, transition:"opacity .2s" }}>
+                  {/* Header row — always visible, clickable to expand when collapsed */}
+                  <div
+                    onClick={isCollapsed ? () => expand(bi) : undefined}
+                    style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding: isCollapsed ? "12px 16px" : "20px 20px 0", cursor: isCollapsed ? "pointer" : "default" }}
+                  >
+                    {!isMorn && <div style={{ ...lbl9, color: blkDone ? "#888" : ACC }}>BLOCK {bi+1}</div>}
+                    {isMorn && <div />}
+                    {blkDone
+                      ? <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                          <div style={{ ...mono, fontSize:11, color:"#888" }}>✓ {new Date(block.completedAt).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})} Uhr</div>
+                          {/* Edit time — pencil icon */}
+                          {!sectionDone && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setEditTimeBlock(bi); }}
+                              title="Zeit bearbeiten"
+                              style={{ width:32, height:32, background:"transparent", border:`1px solid #2a4a00`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:13, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}
+                            >✎</button>
+                          )}
+                          {/* Expand/collapse toggle */}
+                          <button
+                            onClick={e => { e.stopPropagation(); toggleCollapse(bi); }}
+                            title={isCollapsed ? "Aufklappen" : "Einklappen"}
+                            style={{ width:32, height:32, background:"transparent", border:`1px solid #333`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:14, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}
+                          >{isCollapsed ? "▾" : "▴"}</button>
+                          {/* Reopen — only shown when expanded */}
+                          {!isCollapsed && !sectionDone && (
+                            <button
+                              onClick={e => { e.stopPropagation(); onReopenBlock(bi); }}
+                              title="Wieder öffnen"
+                              style={{ width:32, height:32, background:"transparent", border:`1px solid #555`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:14, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}
+                            >↧</button>
+                          )}
+                          {/* Delete block — only shown when not section-done */}
+                          {!sectionDone && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setConfirmDeleteBlock(bi); }}
+                              title="Block löschen"
+                              style={{ width:32, height:32, background:"transparent", border:`1px solid #661111`, color:"#aa6666", borderRadius:3, cursor:"pointer", fontSize:16, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}
+                            >×</button>
+                          )}
+                        </div>
+                      : null}
+                  </div>
+
+                  {/* Collapsible body */}
+                  {!isCollapsed && (
+                    <div style={{ padding:"16px 20px 20px" }}>
+                      {block.exercises.map((ex, ei) => (
+                        <ExRow key={ei} ex={ex} disabled={disabled}
+                          onSetRep={(si,v) => onSetRep(bi,ei,si,v)}
+                          onDelRep={si => onDelRep(bi,ei,si)}
+                          onOpenModal={() => onOpenModal(bi,ei)}
+                          onDelete={() => onDeleteExercise(bi,ei)}
+                          onAddRep={() => onAddRep(bi,ei)}
+                          canDelete={block.exercises.length > 1}
+                        />
+                      ))}
+
+                      {!disabled && !blkDone && (
+                        <div style={{ display:"flex", gap:6, marginTop:12 }}>
+                          {iconBtn("＋", "ÜBUNG", () => onAddExercise(bi))}
+                          {isMorn
+                            ? iconBtn("✓", "ABSCHLIESSEN", onCompleteSection)
+                            : iconBtn("✓", "BLOCK ✓", () => onCompleteBlock(bi), { dim: !allSets })}
+                          {iconBtn("↺", "RESET", () => setConfirmReset(true), { danger: true })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Add block button — always visible after completion if last block */}
+                  {!isMorn && isLast && blkDone && !disabled && (
+                    <div style={{ padding:"12px 16px", borderTop:`1px solid #1a1a1a` }}>
+                      <button
+                        onClick={onAddBlock}
+                        style={{
+                          width:"100%", padding:12, background: msUntil > 0 ? "#1a0d00" : ACC, color: msUntil > 0 ? "#666" : BG,
+                          border: msUntil > 0 ? `1px solid #4a2a00` : "none", borderRadius:4, cursor:"pointer",
+                          fontSize:14, fontWeight:700, letterSpacing:2, ...cond
+                        }}
+                      >
+                        {msUntil > 0 ? `NOCH ${fmtMs(msUntil)}` : "⊕ NEUER BLOCK"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {blkDone && isLast && !sectionDone && (
+                  <div style={{ padding:"12px 14px", background:"#0a0a0a", border:`1px solid #1a1a1a`, borderRadius:4, marginBottom:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div>
+                      <div style={{ ...lbl9, marginBottom:3 }}>SEIT LETZTEM BLOCK</div>
+                      <div style={{ ...mono, fontSize:20, fontWeight:700, color: msSince >= minMs ? "#4a8c4a" : "#bbb" }}>{msSince !== null ? fmtMs(msSince) : "—"}</div>
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ ...lbl9, marginBottom:3 }}>{msUntil > 0 ? "NOCH WARTEN" : "MINDESTPAUSE"}</div>
+                      <div style={{ ...mono, fontSize:20, fontWeight:700, color: msUntil > 0 ? RED : "#4a8c4a" }}>{msUntil > 0 ? fmtMs(msUntil) : `${minPauseH}h ✓`}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {confirmReset && (
+            <ConfirmModal
+              message={isMorn ? "Frühsport zurücksetzen?" : "Training zurücksetzen?"}
+              onConfirm={() => { setConfirmReset(false); onResetSection(); }}
+              onCancel={() => setConfirmReset(false)}
+            />
+          )}
+          {confirmDeleteBlock !== null && (
+            <ConfirmModal
+              message={`Block ${confirmDeleteBlock + 1} löschen?`}
+              onConfirm={() => { setConfirmDeleteBlock(null); onDeleteBlock(confirmDeleteBlock); }}
+              onCancel={() => setConfirmDeleteBlock(null)}
+            />
+          )}
+          {editTimeBlock !== null && (
+            <EditBlockTimeModal
+              block={blocks[editTimeBlock]}
+              blockNum={editTimeBlock + 1}
+              onConfirm={(hour, min) => {
+                const d = new Date();
+                d.setHours(hour, min, 0, 0);
+                onEditBlockTime(editTimeBlock, d.getTime());
+                setEditTimeBlock(null);
+              }}
+              onCancel={() => setEditTimeBlock(null)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // ─── EditBlockTimeModal ──────────────────────────────────────────────────
+    function EditBlockTimeModal({ block, blockNum, label, onConfirm, onCancel }) {
+      const currentTime = new Date(block.completedAt);
+      const [hour, setHour] = useState(currentTime.getHours());
+      const [min, setMin] = useState(Math.round(currentTime.getMinutes() / 15) * 15);
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+      }, []);
+      return (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:"0 24px" }} onClick={onCancel}>
+          <div style={{ background:"#111", border:`1px solid #333`, borderRadius:10, padding:"28px 24px", width:"100%", maxWidth:320 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:15, color:"#ddd", marginBottom:20, ...cond }}>{label || `Block ${blockNum}`} — Zeit bearbeiten</div>
+            <div style={{ display:"flex", gap:12, marginBottom:20 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ ...lbl9, marginBottom:6 }}>STUNDE</div>
+                <select value={hour} onChange={e => setHour(parseInt(e.target.value))} style={{ width:"100%", padding:10, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", borderRadius:4, outline:"none", ...mono, fontSize:14, cursor:"pointer" }}>
+                  {Array.from({length:24}, (_, i) => i).map(h => (
+                    <option key={h} value={h}>{String(h).padStart(2, "0")}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ ...lbl9, marginBottom:6 }}>MINUTEN</div>
+                <select value={min} onChange={e => setMin(parseInt(e.target.value))} style={{ width:"100%", padding:10, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", borderRadius:4, outline:"none", ...mono, fontSize:14, cursor:"pointer" }}>
+                  <option value={0}>00</option>
+                  <option value={15}>15</option>
+                  <option value={30}>30</option>
+                  <option value={45}>45</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={onCancel} style={{ flex:1, padding:14, background:"transparent", border:`1px solid #444`, color:"#aaa", borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:2, ...cond }}>ABBRECHEN</button>
+              <button onClick={() => onConfirm(hour, min)} style={{ flex:1, padding:14, background:ACC, color:BG, border:"none", borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:2, fontWeight:700, ...cond }}>SPEICHERN</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── CloudBackup ─────────────────────────────────────────────────────────────
+    function CloudBackup() {
+      const [state, setState] = useState({ ...window._authState });
+      useEffect(() => {
+        const h = (e) => setState({ ...e.detail });
+        window.addEventListener("authStateChanged", h);
+        return () => window.removeEventListener("authStateChanged", h);
+      }, []);
+
+      if (!_fbAuth) return null;
+
+      if (state.user) {
+        return (
+          <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:4 }}>
+            <div style={{ width:5, height:5, borderRadius:"50%", background: state.syncing ? "#ffa500" : "#4a8c4a" }} />
+            <span style={{ ...mono, fontSize:8, color:"#666", letterSpacing:2 }}>
+              {state.syncing ? "SYNC…" : "BACKUP OK"}
+            </span>
+            <button onClick={window._signOut} title="Sign out" style={{ background:"none", border:"none", color:"#444", fontSize:10, cursor:"pointer", padding:"1px 3px", lineHeight:1 }}>×</button>
+          </div>
+        );
+      }
+
+      return (
+        <button onClick={window._signInWithGoogle} style={{ marginTop:4, background:"none", border:`1px solid #2a2a2a`, borderRadius:3, color:"#555", fontSize:8, letterSpacing:2, cursor:"pointer", padding:"4px 7px", ...mono }}>
+          ☁ BACKUP
+        </button>
+      );
+    }
+
+    // ─── App ─────────────────────────────────────────────────────────────────────
+    function App() {
+      const [ready, setReady]             = useState(false);
+      const [minPauseH, setMinPauseH]     = useState(4);
+      const [trainType, setTrainType]     = useState("A");
+      const [trainBlocks, setTrainBlks]   = useState([]);
+      const [trainSupps, setTrainSupps]   = useState(mkSup());
+      const [trainDone, setTrainDone]     = useState(false);
+      const [mornBlocks, setMornBlks]     = useState([]);
+      const [mornDone, setMornDone]       = useState(false);
+      const [mornCollapsed, setMornCollapsed] = useState(false);
+      const [editMornTime, setEditMornTime] = useState(false);
+      const [tick, setTick]               = useState(0);
+      const [tmpPauseH, setTmpPauseH]     = useState(4);
+      const [modalOpen, setModalOpen]     = useState(false);
+      const [modalTarget, setModalTarget] = useState(null);
+      const [recentEx, setRecentEx]       = useState([]);
+      const [history, setHistory]         = useState([]);
+      const [customExercises, setCustomEx] = useState([]);
+      const [supplements, setSupplements] = useState([]);
+      const [tmpSupplements, setTmpSupplements] = useState([]);
+
+      // ── Gamification state ──
+      const [rpgSnap, setRpgSnap]             = useState(null);
+      const [levelUpEvent, setLevelUpEvent]   = useState(null);
+      const [xpEvents, setXpEvents]           = useState(null);
+      const [achQueue, setAchQueue]           = useState([]);
+      const [animateXP, setAnimateXP]         = useState(false);
+
+      const refreshSnap = useCallback(async () => {
+        const snap = await window.Gamification.getSnapshot();
+        setRpgSnap(snap);
+      }, []);
+
+      useEffect(() => {
+        const id = setInterval(() => setTick(t => t+1), 30000);
+        return () => clearInterval(id);
+      }, []);
+
+      useEffect(() => {
+        (async () => {
+          const cfg  = await load("cfg")  || {};
+          const day  = await load("day")  || {};
+          const morn = await load("morn") || {};
+          const ph   = cfg.minPauseH ?? 4;
+          const lt   = cfg.lastTargets || {};
+          const getT = n => lt[n] ?? 10;
+          setMinPauseH(ph); setTmpPauseH(ph);
+          const t = todayStr();
+          if (day.date === t) {
+            setTrainType(day.type); setTrainBlks(day.blocks);
+            setTrainSupps(day.supps ?? mkSup()); setTrainDone(day.done ?? false);
+          } else {
+            const nt = computeType(cfg.lastDate, cfg.lastType);
+            const nb = [mkBlk("Klimmzüge", getT("Klimmzüge"))];
+            setTrainType(nt); setTrainBlks(nb); setTrainSupps(mkSup()); setTrainDone(false);
+            await save("day", { date:t, type:nt, blocks:nb, supps:mkSup(), done:false });
+          }
+          if (morn.date === t) {
+            setMornBlks(morn.blocks); setMornDone(morn.done ?? false);
+          } else {
+            const mb = [mkBlk("Liegestütze", getT("Liegestütze"))];
+            setMornBlks(mb); setMornDone(false);
+            await save("morn", { date:t, blocks:mb, done:false });
+          }
+          setHistory(await load("history") || []);
+          setCustomEx(cfg.customExercises || []);
+          const supp = cfg.supplements || [];
+          setSupplements(supp);
+          setTmpSupplements(supp);
+          await refreshSnap();
+          setReady(true);
+        })();
+      }, []);
+
+      const saveTrain = (b,su,d) => save("day",  { date:todayStr(), type:trainType, blocks:b??trainBlocks, supps:su??trainSupps, done:d??trainDone });
+      const saveMorn  = (b,d)    => save("morn", { date:todayStr(), blocks:b??mornBlocks, done:d??mornDone });
+
+      const makeHandlers = (blocks, setBlks, persist, isDone, isBlockDone, section) => ({
+        onSetRep:        (bi,ei,si,v) => { if(isDone||isBlockDone(bi))return; const n=mutSetRep(blocks,bi,ei,si,v); setBlks(n); persist(n,null); },
+        onDelRep:        (bi,ei,si)   => { if(isDone||isBlockDone(bi))return; const n=mutDelRep(blocks,bi,ei,si);   setBlks(n); persist(n,null); },
+        onCompleteBlock: (bi)         => { if(isDone)return;                  const n=mutComplete(blocks,bi);        setBlks(n); persist(n,null); },
+        onReopenBlock:   (bi)         => { if(isDone)return;                  const n=mutReopen(blocks,bi);          setBlks(n); persist(n,null); },
+        onAddBlock:      ()           => {                                    const n=mutAddBlk(blocks);             setBlks(n); persist(n,null); },
+        onDeleteBlock:   (bi)         => { if(isDone)return;                  const n=mutDelBlk(blocks,bi);          setBlks(n); persist(n,null); },
+        onEditBlockTime: (bi,timeMs)  => { if(isDone)return;                  const n=mutEditTime(blocks,bi,timeMs); setBlks(n); persist(n,null); },
+        onAddExercise:   (bi)         => { if(isDone||isBlockDone(bi))return; const n=mutAddEx(blocks,bi);           setBlks(n); persist(n,null); },
+        onOpenModal:     (bi,ei)      => { setModalTarget({section,bi,ei}); setModalOpen(true); },
+        onDeleteExercise:(bi,ei)      => { if(isDone||isBlockDone(bi))return; const n=mutDelEx(blocks,bi,ei);        setBlks(n); persist(n,null); },
+        onChangeTarget:  (bi,ei,d)    => { if(isDone||isBlockDone(bi))return; const n=mutTarget(blocks,bi,ei,d);    setBlks(n); persist(n,null); },
+        onAddRep:        (bi,ei)      => { if(isDone||isBlockDone(bi))return; const n=mutAddRep(blocks,bi,ei);       setBlks(n); persist(n,null); },
+      });
+
+      const th = makeHandlers(trainBlocks, setTrainBlks, (b,su) => saveTrain(b,su,null), trainDone, bi => !!trainBlocks[bi]?.completedAt, "train");
+      const mh = makeHandlers(mornBlocks,  setMornBlks,  (b)    => saveMorn(b,null),     mornDone,  bi => !!mornBlocks[bi]?.completedAt,  "morn");
+
+      const addCustomExercise = async (name) => {
+        if (customExercises.includes(name)) return;
+        const updated = [...customExercises, name];
+        setCustomEx(updated);
+        const cfg = await load("cfg") || {};
+        await save("cfg", { ...cfg, customExercises: updated });
+      };
+
+      const selectExercise = (exName) => {
+        if (!modalTarget) return;
+        const { section, bi, ei } = modalTarget;
+        const setBlks = section === "train" ? setTrainBlks : setMornBlks;
+        const blocks  = section === "train" ? trainBlocks  : mornBlocks;
+        const persist = section === "train" ? b => saveTrain(b,null,null) : b => saveMorn(b,null);
+        setBlks(mutName(blocks, bi, ei, exName)); persist(mutName(blocks, bi, ei, exName));
+        setRecentEx(prev => [exName, ...prev.filter(e => e !== exName)].slice(0,8));
+        setModalOpen(false);
+      };
+
+      const fireGamificationEvents = (events, newLevel) => {
+        const levelUpEv = events.find(e => e.type === "levelUp");
+        const achEv     = events.find(e => e.type === "achievements");
+        const xpEv      = events.filter(e => ["xp","pr","improvement","weeklyBonus"].includes(e.type));
+
+        if (levelUpEv) { setLevelUpEvent(newLevel); }
+        else {
+          if (xpEv.length > 0) { setXpEvents(xpEv); setTimeout(() => setXpEvents(null), 3500); }
+        }
+        if (achEv?.list?.length > 0) {
+          setAchQueue(q => [...q, ...achEv.list]);
+        }
+        setAnimateXP(true);
+        setTimeout(() => setAnimateXP(false), 2000);
+      };
+
+      const toggleSupp = k => { if(trainDone)return; const ns={...trainSupps,[k]:!trainSupps[k]}; setTrainSupps(ns); saveTrain(null,ns,null); };
+
+      const completeMorning = async () => {
+        if (mornDone) return; // guard: already completed
+        setMornDone(true); setMornCollapsed(true);
+        saveMorn(null,true);
+        const exerciseSessions = aggregateExercises(mornBlocks).map(ex => ({ name: ex.name, reps: ex.reps }));
+        const result = await window.Gamification.processWorkoutComplete({ exerciseSessions, isMorning: true, date: todayStr() });
+        await refreshSnap();
+        fireGamificationEvents(result.events, result.newLevel);
+      };
+
+      const resetDay = async () => { const cfg=await load("cfg")||{}; const lt=cfg.lastTargets||{}; const nb=[mkBlk("Klimmzüge",lt["Klimmzüge"]??10)]; setTrainBlks(nb); setTrainSupps(mkSup()); setTrainDone(false); await save("day",{date:todayStr(),type:trainType,blocks:nb,supps:mkSup(),done:false}); };
+      const resetMorning = async () => { const cfg=await load("cfg")||{}; const lt=cfg.lastTargets||{}; const mb=[mkBlk("Liegestütze",lt["Liegestütze"]??10)]; setMornBlks(mb); setMornDone(false); setMornCollapsed(false); await save("morn",{date:todayStr(),blocks:mb,done:false}); };
+
+      const updateMornTime = async (hour, min) => {
+        const d = new Date();
+        d.setHours(hour, min, 0, 0);
+        const newBlocks = mornBlocks.map((b, i) => i === 0 ? { ...b, completedAt: d.getTime() } : b);
+        setMornBlks(newBlocks);
+        await saveMorn(newBlocks, true);
+      };
+
+      const completeDay = async () => {
+        if (trainDone) return; // guard: already completed
+        setTrainDone(true); saveTrain(null,null,true);
+        const cfg = await load("cfg") || {};
+        const lt = {};
+        [...trainBlocks,...mornBlocks].forEach(b => b.exercises.forEach(ex => { lt[ex.name]=ex.target; }));
+        await save("cfg", { ...cfg, minPauseH, lastDate:todayStr(), lastType:trainType, lastTargets:lt });
+        const entry = { date:todayStr(), type:trainType, exercises:aggregateExercises(trainBlocks), mornExercises:aggregateExercises(mornBlocks) };
+        const hist = await load("history") || [];
+        const updated = [...hist.filter(e => e.date!==todayStr()), entry];
+        await save("history", updated); setHistory(updated);
+
+        // Gamification
+        const allExercises = [...aggregateExercises(trainBlocks), ...aggregateExercises(mornBlocks)];
+        const exerciseSessions = allExercises.map(ex => ({ name: ex.name, reps: ex.reps }));
+        const result = await window.Gamification.processWorkoutComplete({ exerciseSessions, isMorning: false, date: todayStr() });
+        await refreshSnap();
+        fireGamificationEvents(result.events, result.newLevel);
+      };
+
+      const exportData = async () => JSON.stringify({ cfg:await load("cfg"), day:await load("day"), morn:await load("morn"), history:await load("history"), exportedAt:new Date().toISOString() }, null, 2);
+      const importData = async (parsed) => { if(parsed.cfg) await save("cfg",parsed.cfg); if(parsed.day) await save("day",parsed.day); if(parsed.morn) await save("morn",parsed.morn); if(parsed.history) await save("history",parsed.history); window.location.reload(); };
+
+      const typeColor = trainType==="A" ? ACC : RED;
+      const nextType  = trainType==="A" ? "B" : "A";
+
+      // ─── Settings+Stats modal ─────────────────────────────────────────────────
+      const [menuOpen, setMenuOpen] = useState(false);
+      const [menuTab, setMenuTab]   = useState("rpg");
+
+      const MenuModal = () => {
+        const [copyOk, setCopyOk] = useState(false);
+        const [importJson, setImportJson] = useState("");
+        const [importErr, setImportErr]   = useState("");
+        const [cloudState, setCloudState] = useState({ ...window._authState });
+        useEffect(() => {
+          const handleKeyDown = (e) => {
+            if (e.key === "Escape") { e.preventDefault(); setMenuOpen(false); }
+          };
+          window.addEventListener("keydown", handleKeyDown);
+          return () => window.removeEventListener("keydown", handleKeyDown);
+        }, []);
+        useEffect(() => {
+          const h = (e) => setCloudState({ ...e.detail });
+          window.addEventListener("authStateChanged", h);
+          return () => window.removeEventListener("authStateChanged", h);
+        }, []);
+        const streak   = calcStreak(history);
+        const topEx    = calcTopExercises(history);
+        const weekVol  = calcWeeklyVolume(history);
+        const last28   = calcLast28(history);
+        const maxWeek  = Math.max(...weekVol.map(w => w[1]), 1);
+        const totalDays = history.length;
+        const totalReps = history.reduce((s,e) => s + [...(e.exercises||[]),...(e.mornExercises||[])].reduce((a,ex) => a+(ex.reps||0),0), 0);
+        const totalSets = history.reduce((s,e) => s + [...(e.exercises||[]),...(e.mornExercises||[])].reduce((a,ex) => a+(ex.sets||0),0), 0);
+        const handleCopy = async () => {
+          const json = await exportData();
+          try { await navigator.clipboard.writeText(json); setCopyOk(true); setTimeout(() => setCopyOk(false), 2500); }
+          catch { setImportJson(json); setImportErr("Clipboard gesperrt — JSON unten erschienen"); }
+        };
+        const handleImport = () => { setImportErr(""); try { importData(JSON.parse(importJson)); } catch { setImportErr("Ungültiges JSON"); } };
+        const TAB = (id, label) => (
+          <button key={id} onClick={() => setMenuTab(id)} style={{ flex:1, padding:"12px 0", background:"transparent", border:"none", borderBottom:`2px solid ${menuTab===id ? ACC : "transparent"}`, color: menuTab===id ? "#f0f0ed" : "#888", fontSize:9, letterSpacing:2, cursor:"pointer", ...cond, fontWeight:700 }}>{label}</button>
+        );
+        const KPI = ({ label, val, unit, large }) => (
+          <div style={{ background:"#0a0a0a", border:`1px solid ${BDR}`, borderRadius:6, padding:"14px 12px" }}>
+            <div style={{ ...lbl9, marginBottom:6 }}>{label}</div>
+            <div style={{ ...mono, fontSize: large ? 30 : 22, fontWeight:700, color:ACC, lineHeight:1 }}>{val}</div>
+            <div style={{ fontSize:10, color:"#888", marginTop:4 }}>{unit}</div>
+          </div>
+        );
+
+        // Mini level badge in header
+        const miniLevel = rpgSnap?.level || 1;
+        const miniTree  = window.LevelManager.treeStage(miniLevel);
+
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", display:"flex", alignItems:"flex-end", zIndex:1500 }} onClick={() => setMenuOpen(false)}>
+            <div style={{ background:"#111", width:"100%", borderRadius:"14px 14px 0 0", maxHeight:"90vh", overflow:"auto", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", borderBottom:`1px solid ${BDR}`, flexShrink:0 }}>
+                {TAB("rpg","RPG")}{TAB("stats","STATS")}{TAB("exercises","ÜBUNGEN")}{TAB("settings","SETTINGS")}{TAB("data","DATEN")}
+              </div>
+              <div style={{ overflowY:"auto", padding:"20px 20px 40px" }}>
+                {menuTab === "rpg" && (
+                  <RPGPanel snap={rpgSnap} history={history} animateXP={animateXP} />
+                )}
+                {menuTab === "stats" && (history.length === 0
+                  ? <div style={{ padding:"60px 0", textAlign:"center" }}><div style={{ ...mono, fontSize:10, color:"#555", letterSpacing:3 }}>NOCH KEINE DATEN</div></div>
+                  : <>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:8 }}>
+                        <KPI label="STREAK" val={streak.cur} unit="Tage" large /><KPI label="REKORD" val={streak.best} unit="Tage" large /><KPI label="SESSIONS" val={totalDays} unit="gesamt" large />
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:20 }}>
+                        <KPI label="TOTAL REPS" val={totalReps.toLocaleString("de")} unit="Wiederholungen" /><KPI label="TOTAL SÄTZE" val={totalSets.toLocaleString("de")} unit="abgeschlossen" />
+                      </div>
+                      <div style={{ ...lbl9, marginBottom:10 }}>LETZTE 28 TAGE</div>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(7, 1fr)", gap:4, marginBottom:8 }}>
+                        {last28.map(({ date, entry }) => (
+                          <div key={date} title={date} style={{ height:30, borderRadius:3, background: !entry ? "#1a1a1a" : entry.type==="A" ? "#1e4d08" : "#08304d", border:`1px solid ${!entry ? "#222" : entry.type==="A" ? "#3a8a10" : "#1a6a9a"}` }} />
+                        ))}
+                      </div>
+                      {weekVol.length > 1 && <>
+                        <div style={{ ...lbl9, marginBottom:10, marginTop:20 }}>REPS PRO WOCHE</div>
+                        <div style={{ display:"flex", gap:6, alignItems:"flex-end", height:90 }}>
+                          {weekVol.map(([week, vol]) => (
+                            <div key={week} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+                              <div style={{ ...mono, fontSize:8, color:"#888" }}>{vol >= 1000 ? `${(vol/1000).toFixed(1)}k` : vol}</div>
+                              <div style={{ width:"100%", background:ACC, borderRadius:"3px 3px 0 0", height:`${Math.max(4,(vol/maxWeek)*64)}px`, opacity:0.6 }} />
+                              <div style={{ ...mono, fontSize:8, color:"#666" }}>{week.slice(5)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </>}
+                    </>
+                )}
+                {menuTab === "exercises" && (topEx.length === 0
+                  ? <div style={{ padding:"60px 0", textAlign:"center" }}><div style={{ ...mono, fontSize:10, color:"#555", letterSpacing:3 }}>NOCH KEINE DATEN</div></div>
+                  : <>
+                      <div style={{ ...lbl9, marginBottom:16 }}>GESAMTVOLUMEN NACH ÜBUNG</div>
+                      {topEx.map(([name, { sets, reps }]) => {
+                        const prog = calcExerciseProgression(history, name);
+                        const maxR = Math.max(...prog.map(p => p.reps), 1);
+                        return (
+                          <div key={name} style={{ background:"#0a0a0a", border:`1px solid ${BDR}`, borderRadius:6, padding:16, marginBottom:10 }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
+                              <span style={{ fontSize:16, fontWeight:700, color:"#ddd" }}>{name}</span>
+                              <span style={{ ...mono, fontSize:10, color:"#aaa" }}>{reps.toLocaleString("de")} reps · {sets} sätze</span>
+                            </div>
+                            <div style={{ height:4, background:"#1a1a1a", borderRadius:2, marginBottom: prog.length > 1 ? 14 : 0 }}>
+                              <div style={{ height:4, background:ACC, opacity:0.5, width:`${(reps / topEx[0][1].reps) * 100}%`, borderRadius:2 }} />
+                            </div>
+                            {prog.length > 1 && <>
+                              <div style={{ ...lbl9, marginBottom:6 }}>PROGRESSION</div>
+                              <div style={{ display:"flex", gap:3, alignItems:"flex-end", height:40 }}>
+                                {prog.map((p,i) => (
+                                  <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                                    <div style={{ width:"100%", background: i===prog.length-1 ? ACC : "#2a4a00", borderRadius:"2px 2px 0 0", height:`${Math.max(3,(p.reps/maxR)*30)}px`, opacity: i===prog.length-1 ? 0.85 : 0.5 }} />
+                                    <div style={{ ...mono, fontSize:7, color:"#888" }}>{p.reps}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </>}
+                          </div>
+                        );
+                      })}
+                    </>
+                )}
+                {menuTab === "settings" && <>
+                  <div style={{ ...lbl9, marginBottom:14 }}>MINDESTPAUSE ZWISCHEN BLÖCKEN</div>
+                  <div style={{ display:"flex", borderRadius:4, overflow:"hidden", border:`1px solid ${BDR}`, marginBottom:8 }}>
+                    <button onClick={() => setTmpPauseH(v => Math.max(1,v-1))} style={{ width:72, height:72, background:CARD, border:"none", color:"#bbb", fontSize:30, cursor:"pointer", ...mono }}>−</button>
+                    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a1a", ...mono, fontSize:34, fontWeight:700 }}>{tmpPauseH}h</div>
+                    <button onClick={() => setTmpPauseH(v => v+1)} style={{ width:72, height:72, background:CARD, border:"none", color:"#bbb", fontSize:30, cursor:"pointer", ...mono }}>+</button>
+                  </div>
+                  <div style={{ ...mono, fontSize:10, color:"#888", marginBottom:28 }}>gilt für Frühsport & Training</div>
+
+                  <div style={{ ...lbl9, marginBottom:14, marginTop:20 }}>SUPPLEMENTE</div>
+                  <div style={{ marginBottom:20 }}>
+                    {tmpSupplements.map((supp, si) => (
+                      <div key={si} style={{ background:CARD, border:`1px solid ${BDR}`, borderRadius:6, padding:14, marginBottom:10, display:"flex", gap:10, alignItems:"flex-start" }}>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <input
+                            type="text"
+                            placeholder="Supplement (z.B. Kreatin)"
+                            value={supp.name}
+                            onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],name:e.target.value}; setTmpSupplements(ns); }}
+                            style={{ width:"100%", background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:13, marginBottom:8, boxSizing:"border-box" }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Menge (z.B. 3g)"
+                            value={supp.amount || ""}
+                            onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],amount:e.target.value}; setTmpSupplements(ns); }}
+                            style={{ width:"100%", background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:13, marginBottom:8, boxSizing:"border-box" }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Zeit (z.B. morgens)"
+                            value={supp.time || ""}
+                            onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],time:e.target.value}; setTmpSupplements(ns); }}
+                            style={{ width:"100%", background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:13, boxSizing:"border-box" }}
+                          />
+                        </div>
+                        <button
+                          onClick={() => { const ns=tmpSupplements.filter((_,j)=>j!==si); setTmpSupplements(ns); }}
+                          style={{ width:36, height:36, background:"transparent", border:`1px solid #661111`, color:"#aa6666", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}
+                        >×</button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setTmpSupplements([...tmpSupplements, { name:"", amount:"", time:"" }])}
+                      style={{ width:"100%", padding:12, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:13, ...cond }}
+                    >+ SUPPLEMENT HINZUFÜGEN</button>
+                  </div>
+
+                  <button onClick={() => { const ph=Math.max(1,tmpPauseH); setMinPauseH(ph); setSupplements(tmpSupplements); load("cfg").then(cfg => save("cfg",{...(cfg||{}),minPauseH:ph,supplements:tmpSupplements})); setMenuOpen(false); }} style={{ background:ACC, color:BG, border:"none", padding:16, fontSize:18, fontWeight:900, letterSpacing:3, width:"100%", borderRadius:4, cursor:"pointer", ...cond }}>SPEICHERN</button>
+                </>}
+                {menuTab === "data" && <>
+                  {_fbAuth && <>
+                    <div style={{ ...lbl9, marginBottom:10 }}>CLOUD BACKUP</div>
+                    {cloudState.user ? (
+                      <div style={{ background:"#0a1a0a", border:`1px solid #1a3a1a`, borderRadius:6, padding:"14px 16px", marginBottom:24, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <div>
+                          <div style={{ ...mono, fontSize:9, color: cloudState.syncing ? "#ffa500" : "#4a8c4a", letterSpacing:3, marginBottom:4 }}>
+                            {cloudState.syncing ? "WIRD SYNCHRONISIERT…" : "BACKUP AKTIV"}
+                          </div>
+                          <div style={{ fontSize:12, color:"#888" }}>{cloudState.user.displayName || cloudState.user.email}</div>
+                        </div>
+                        <button onClick={window._signOut} style={{ background:"transparent", border:`1px solid #333`, color:"#666", borderRadius:4, padding:"8px 14px", cursor:"pointer", fontSize:11, letterSpacing:2, ...cond }}>ABMELDEN</button>
+                      </div>
+                    ) : (
+                      <div style={{ marginBottom:24 }}>
+                        <button onClick={window._signInWithGoogle} style={{ width:"100%", padding:16, background:"#111a2a", border:`1px solid #2a3a5a`, color:"#8899cc", fontSize:14, fontWeight:700, letterSpacing:2, borderRadius:4, cursor:"pointer", ...cond, marginBottom:8 }}>
+                          MIT GOOGLE ANMELDEN
+                        </button>
+                        <div style={{ ...mono, fontSize:9, color:"#555" }}>Daten automatisch in Google Cloud sichern. Geräteübergreifend verfügbar.</div>
+                      </div>
+                    )}
+                  </>}
+                  <div style={{ ...lbl9, marginBottom:14 }}>EXPORT</div>
+                  <button onClick={handleCopy} style={{ width:"100%", padding:16, background: copyOk ? "#1a3a00" : CARD, border:`1px solid ${copyOk ? "#3a8a10" : BDR}`, color: copyOk ? ACC : "#ccc", fontSize:14, fontWeight:700, letterSpacing:2, borderRadius:4, cursor:"pointer", ...cond, marginBottom:6 }}>
+                    {copyOk ? "✓ IN ZWISCHENABLAGE KOPIERT" : "DATEN KOPIEREN → JSON"}
+                  </button>
+                  <div style={{ ...mono, fontSize:10, color:"#888", marginBottom:28 }}>cfg · day · morn · history — alles als JSON.</div>
+                  <div style={{ ...lbl9, marginBottom:14 }}>IMPORT</div>
+                  <textarea value={importJson} onChange={e => { setImportJson(e.target.value); setImportErr(""); }} placeholder="JSON hier einfügen…" style={{ width:"100%", height:110, background:"#1a1a1a", border:`1px solid ${importErr ? RED : BDR}`, color:"#ccc", padding:12, borderRadius:4, outline:"none", resize:"none", ...mono, fontSize:11, boxSizing:"border-box" }} />
+                  {importErr && <div style={{ ...mono, fontSize:10, color:RED, marginTop:4 }}>{importErr}</div>}
+                  <button onClick={handleImport} style={{ width:"100%", padding:16, background: importJson ? "#1a1a00" : CARD, border:`1px solid ${importJson ? "#4a4a00" : BDR}`, color: importJson ? "#cccc00" : "#555", fontSize:14, fontWeight:700, letterSpacing:2, borderRadius:4, cursor: importJson ? "pointer" : "default", ...cond, marginTop:8 }}>
+                    DATEN IMPORTIEREN
+                  </button>
+                </>}
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      if (!ready) return <div style={{ background:BG, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", ...mono, color:"#888", fontSize:13 }}>···</div>;
+
+      // Mini RPG header strip
+      const miniLevel  = rpgSnap?.level || 1;
+      const miniPct    = rpgSnap?.progress?.pct || 0;
+      const miniStreak = rpgSnap?.streakState?.current || 0;
+      const miniTree   = window.LevelManager.treeStage(miniLevel);
+
+      return (
+        <div style={{ background:BG, minHeight:"100vh", color:"#f0f0ed", ...cond, maxWidth:480, margin:"0 auto", paddingBottom:100 }}>
+          {/* ── Header ── */}
+          <div style={{ padding:"20px 20px" }}>
+            {/* Top row: LV badge + Settings */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+              {/* Mini level badge */}
+              <button onClick={() => { setTmpPauseH(minPauseH); setMenuTab("rpg"); setMenuOpen(true); }} style={{ background:"#0d1a00", border:`1px solid #2a4a00`, borderRadius:6, padding:"8px 10px", cursor:"pointer", textAlign:"left", minWidth: 90 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <div style={{ ...mono, fontSize:9, color:ACC, fontWeight:700 }}>LV {miniLevel}</div>
+                  {miniStreak > 0 && <div style={{ ...mono, fontSize:9, color:"#888" }}>🔥{miniStreak}</div>}
+                </div>
+                <div style={{ height:3, background:"#1a1a1a", borderRadius:2, marginTop:4, overflow:"hidden" }}>
+                  <div style={{ height:"100%", background:ACC, width:`${miniPct}%`, borderRadius:2, transition:"width 0.8s ease" }}/>
+                </div>
+              </button>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end" }}>
+                <button onClick={() => { setTmpPauseH(minPauseH); setMenuTab("rpg"); setMenuOpen(true); }} style={{ background:"none", border:`1px solid #333`, color:"#bbb", cursor:"pointer", padding:"8px 10px", fontSize:18, borderRadius:4 }}>⚙</button>
+                <CloudBackup />
+              </div>
+            </div>
+
+            {/* Large TAG A/B */}
+            <div style={{ fontSize:80, fontWeight:900, lineHeight:0.88, letterSpacing:-3, color:typeColor, marginTop:4 }}>TAG {trainType}</div>
+            
+              {/* Bottom row: Date (left) + Day type (right) */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
+              <div>
+                <div style={{ ...lbl9, marginBottom:2 }}>{fmtDate(todayStr()).toUpperCase()}</div>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <div style={{ fontSize:11, letterSpacing:4, color:"#aaa" }}>{trainType==="A" ? "TRAININGSTAG" : "RUHETAG"}</div>
+              </div>
+            </div>
+
+          </div>
+          <div style={{ height:1, background:BDR }} />
+
+          {/* ── Frühsport ── */}
+          <div style={{ padding:"20px 20px 0" }}>
+            <div
+              onClick={mornCollapsed ? () => setMornCollapsed(false) : undefined}
+              style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: mornCollapsed ? 0 : 14, padding: mornCollapsed ? "12px 16px" : "0", cursor: mornCollapsed ? "pointer" : "default" }}
+            >
+              <div style={{ fontSize:26, fontWeight:900, letterSpacing:1, color: mornDone ? "#555" : "#aaa" }}>FRÜHSPORT</div>
+              {mornDone && (
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <div style={{ ...mono, fontSize:9, color:"#555", letterSpacing:3 }}>✓ {mornBlocks[0]?.completedAt ? new Date(mornBlocks[0].completedAt).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) : "—"} Uhr</div>
+                  {/* Edit time — pencil icon */}
+                  <button
+                    onClick={e => { e.stopPropagation(); setEditMornTime(true); }}
+                    title="Zeit bearbeiten"
+                    style={{ width:32, height:32, background:"transparent", border:`1px solid #2a4a00`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:13, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}
+                  >✎</button>
+                  {/* Expand/collapse toggle */}
+                  <button
+                    onClick={e => { e.stopPropagation(); setMornCollapsed(!mornCollapsed); }}
+                    title={mornCollapsed ? "Aufklappen" : "Einklappen"}
+                    style={{ width:32, height:32, background:"transparent", border:`1px solid #333`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:14, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}
+                  >{mornCollapsed ? "▾" : "▴"}</button>
+                  {/* Reopen — only shown when expanded */}
+                  {!mornCollapsed && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setMornDone(false); setMornCollapsed(false); saveMorn(mornBlocks, false); }}
+                      title="Wieder öffnen"
+                      style={{ width:32, height:32, background:"transparent", border:`1px solid #555`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:14, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}
+                    >↧</button>
+                  )}
+                </div>
+              )}
+            </div>
+            {!mornCollapsed && <BlocksSection blocks={mornBlocks} sectionDone={mornDone} minPauseH={minPauseH} isMorn={true} {...mh} onCompleteSection={completeMorning} onResetSection={resetMorning} />}
+          </div>
+          <div style={{ height:1, background:BDR, margin:"20px 0 0" }} />
+
+          {/* ── Training ── */}
+          <div style={{ padding:"20px 20px 0" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+              <div style={{ fontSize:26, fontWeight:900, letterSpacing:1, color: trainDone ? "#555" : typeColor }}>TRAINING</div>
+              {trainDone && <div style={{ ...mono, fontSize:9, color:"#555", letterSpacing:3 }}>DONE ✓</div>}
+            </div>
+            {trainType === "A" && <BlocksSection blocks={trainBlocks} sectionDone={trainDone} minPauseH={minPauseH} isMorn={false} {...th} onCompleteSection={() => {}} onResetSection={resetDay} />}
+            {trainType === "B" && (
+              <div style={{ background:CARD, border:`1px solid ${BDR}`, borderRadius:6, padding:20, marginBottom:12 }}>
+                <div style={{ fontSize:9, color:RED, letterSpacing:4, marginBottom:12 }}>ABSOLUTES TRAININGSVERBOT</div>
+                <div style={{ fontSize:15, color:"#aaa", lineHeight:1.7 }}>Sehnen und Nervensystem reparieren Mikroverletzungen. Keine Klimmzüge, auch nicht kurz im Vorbeigehen.</div>
+                <div style={{ marginTop:20, paddingTop:16, borderTop:`1px solid ${BDR}`, display:"flex", alignItems:"center", gap:10 }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:"#2c6e35", flexShrink:0 }} />
+                  <span style={{ fontSize:13, color:"#888", letterSpacing:1 }}>Radfahren & Ausdauer erlaubt</span>
+                </div>
+              </div>
+            )}
+          </div>
+          {supplements.length > 0 && (
+            <div style={{ padding:"16px 20px 0" }}>
+              <div style={{ ...lbl9, marginBottom:4 }}>SUPPLEMENTE</div>
+              {supplements.map(supp => {
+                const suppKey = supp.name.toLowerCase().replace(/\s+/g, "_");
+                const isChecked = trainSupps[suppKey] || false;
+                return (
+                  <div key={suppKey} onClick={() => { if(!trainDone) { const ns={...trainSupps,[suppKey]:!isChecked}; setTrainSupps(ns); saveTrain(null,ns,null); } }} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 0", borderBottom:`1px solid ${BDR}`, cursor: trainDone ? "default" : "pointer" }}>
+                    <div style={{ width:22, height:22, borderRadius:3, border:`2px solid ${isChecked ? ACC : "#888"}`, background: isChecked ? ACC : "transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      {isChecked && <span style={{ color:BG, fontSize:13, fontWeight:700, lineHeight:1 }}>✓</span>}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <span style={{ fontSize:16, color: isChecked ? "#555" : "#ddd", textDecoration: isChecked ? "line-through" : "none" }}>{supp.name} {supp.amount && `— ${supp.amount}`}</span>
+                      {supp.time && <div style={{ fontSize:11, color:"#666", marginTop:2 }}>{supp.time}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div style={{ padding:"28px 20px 0" }}>
+            {!trainDone
+              ? <>
+                  <button onClick={completeDay} style={{ background:typeColor, color:BG, border:"none", padding:18, fontSize:22, fontWeight:900, letterSpacing:3, width:"100%", borderRadius:4, cursor:"pointer", ...cond }}>TAG ABSCHLIESSEN</button>
+                  <div style={{ ...mono, fontSize:9, color:"#888", textAlign:"center", marginTop:10, letterSpacing:2 }}>MORGEN: TAG {nextType}&nbsp;&nbsp;|&nbsp;&nbsp;KEIN ABSCHLUSS → MORGEN TAG A</div>
+                </>
+              : <div style={{ textAlign:"center", padding:"12px 0" }}>
+                  <div style={{ ...mono, fontSize:10, color:"#888", letterSpacing:3 }}>MORGEN: TAG {nextType}</div>
+                </div>
+            }
+          </div>
+
+          <ExerciseModal open={modalOpen} onClose={() => setModalOpen(false)} onSelect={selectExercise} recentlyUsed={recentEx} customExercises={customExercises} onAddCustom={addCustomExercise} />
+          {menuOpen && <MenuModal />}
+
+          {/* ── Edit time modals ── */}
+          {editMornTime && (
+            <EditBlockTimeModal
+              block={mornBlocks[0]}
+              blockNum={0}
+              label="Frühsport"
+              onConfirm={(hour, min) => {
+                updateMornTime(hour, min);
+                setEditMornTime(false);
+              }}
+              onCancel={() => setEditMornTime(false)}
+            />
+          )}
+
+          {/* ── Gamification overlays ── */}
+          {levelUpEvent && (
+            <LevelUpOverlay level={levelUpEvent} onDone={() => { setLevelUpEvent(null); setXpEvents(null); }} />
+          )}
+          {xpEvents && !levelUpEvent && (
+            <XPPopup events={xpEvents} onDone={() => setXpEvents(null)} />
+          )}
+          {achQueue.length > 0 && (
+            <AchievementToast
+              achievement={achQueue[0]}
+              onDone={() => setAchQueue(q => q.slice(1))}
+            />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
