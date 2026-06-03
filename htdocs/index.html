@@ -163,32 +163,30 @@
         try {
           const snap = await getDocs(col);
           if (snap.empty) {
-            // First login — push local data up as initial backup
             await this._pushAllToCloud();
             return;
           }
-          let changes = 0;
+          const today = new Date().toISOString().slice(0, 10);
           snap.forEach(doc => {
             const key    = doc.id;
             const cldVal = doc.data().value;
             const locKey = "tp_" + key;
             const locVal = localStorage.getItem(locKey);
-            if (!locVal) {
-              // Key missing locally → restore from cloud
-              localStorage.setItem(locKey, cldVal);
-              changes++;
-            } else if (key === "sessions") {
+            if (key === "sessions") {
               try {
-                const loc    = JSON.parse(locVal);
-                const cld    = JSON.parse(cldVal);
-                const merged = _mergeHistories(loc, cld); // date-keyed union of sessions
-                if (merged.length > (loc?.length || 0)) {
-                  localStorage.setItem(locKey, JSON.stringify(merged));
-                  changes++;
-                }
+                const loc = locVal ? JSON.parse(locVal) : [];
+                const cld = JSON.parse(cldVal);
+                // Cloud wins for past dates; local wins for today
+                const map = {};
+                cld.forEach(s => { map[s.date] = s; });
+                loc.forEach(s => { if (s.date === today) map[s.date] = s; });
+                const merged = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+                localStorage.setItem(locKey, JSON.stringify(merged));
               } catch {}
+            } else if (!locVal) {
+              localStorage.setItem(locKey, cldVal);
             }
-            // Other keys: local wins — today's data is always most current
+            // Other keys: local wins (most current)
           });
           window.dispatchEvent(new CustomEvent("cloudSyncComplete"));
         } catch(e) {
