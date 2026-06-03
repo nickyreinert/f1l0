@@ -202,6 +202,9 @@
     // ─── Auth state ───────────────────────────────────────────────────────────────
     window._authState = { user: null, syncing: false };
 
+    let _resolveSyncReady;
+    window._syncReady = new Promise(r => { _resolveSyncReady = r; });
+
     if (_fbAuth) {
       _fbAuth.onAuthStateChanged(async (user) => {
         window.storage._uid       = user?.uid || null;
@@ -220,7 +223,10 @@
           window._authState.syncing = false;
           window.dispatchEvent(new CustomEvent("authStateChanged", { detail: { ...window._authState } }));
         }
+        _resolveSyncReady();
       });
+    } else {
+      _resolveSyncReady();
     }
 
     window._signInWithGoogle = async () => {
@@ -1564,6 +1570,7 @@
       }, []);
 
       const initApp = useCallback(async () => {
+          await window._syncReady;
           const cfg = await load("cfg") || {};
           const rawAll = await load("sessions") || [];
           const all = rawAll.map(migrateSession);
@@ -1613,9 +1620,6 @@
 
       useEffect(() => {
         initApp();
-        const onSync = () => initApp();
-        window.addEventListener("cloudSyncComplete", onSync);
-        return () => window.removeEventListener("cloudSyncComplete", onSync);
       }, [initApp]);
 
       const persistToday = async (patch) => {
