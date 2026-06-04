@@ -122,9 +122,11 @@
 
       // Write to localStorage + Firestore on every change
       async set(k, v) {
+        const ts = Date.now();
         localStorage.setItem("tp_" + k, v);
+        localStorage.setItem("tp_" + k + "_ts", String(ts)); // for sync conflict resolution
         const col = this._col();
-        if (col) setDoc(doc(col, k), { value: v, ts: Date.now() }).catch(() => {});
+        if (col) setDoc(doc(col, k), { value: v, ts }).catch(() => {});
         return { key: k, value: v };
       },
 
@@ -139,9 +141,23 @@
         const keys = [];
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k && k.startsWith("tp_" + (prefix || ""))) keys.push(k.slice(3));
+          if (k && k.startsWith("tp_" + (prefix || "")) && !k.endsWith("_ts")) keys.push(k.slice(3));
         }
         return { keys };
+      },
+
+      // Push every local key up to Firestore (used after import).
+      async _pushAllToCloud() {
+        const col = this._col();
+        if (!col) return;
+        const batch = writeBatch(_fbDb);
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k?.startsWith("tp_") && !k.endsWith("_ts")) {
+            batch.set(doc(col, k.slice(3)), { value: localStorage.getItem(k), ts: Date.now() });
+          }
+        }
+        await batch.commit();
       },
 
       // On login: load everything from Firestore into localStorage, then re-init UI
@@ -155,7 +171,7 @@
             const batch = writeBatch(_fbDb);
             for (let i = 0; i < localStorage.length; i++) {
               const k = localStorage.key(i);
-              if (k?.startsWith("tp_")) {
+              if (k?.startsWith("tp_") && !k.endsWith("_ts")) {
                 batch.set(doc(col, k.slice(3)), { value: localStorage.getItem(k), ts: Date.now() });
               }
             }
@@ -784,8 +800,18 @@
 
     // Migrate schema 2 (blocks) → schema 3 (mornExercises + exercises)
     function migrateSession(s) {
-      if (Array.isArray(s.exercises) || Array.isArray(s.mornExercises)) return s;
-      const toFlat = (exs) => exs.map(ex => ({ name: ex.name, target: ex.reps[0]||10, reps: ex.reps }));
+      if (Array.isArray(s.exercises) || Array.isArray(s.mornExercises)) {
+        // Backfill per-exercise `done` (added later). An exercise counts as done if
+        // it already has the flag, or its section/session was marked complete.
+        const fill = (exs, sectionDone) => (exs || []).map(ex =>
+          typeof ex.done === "boolean" ? ex : { ...ex, done: !!(sectionDone || s.done) });
+        return {
+          ...s,
+          exercises:     fill(s.exercises, s.done),
+          mornExercises: fill(s.mornExercises, s.mornDone),
+        };
+      }
+      const toFlat = (exs) => exs.map(ex => ({ name: ex.name, target: ex.reps[0]||10, reps: ex.reps, done: true }));
       const mornMap = {}, mainMap = {};
       (s.blocks || []).forEach(b => {
         const target = b.slot === "morning" ? mornMap : mainMap;
@@ -852,7 +878,7 @@
     };
 
     // ─── Data shapes ─────────────────────────────────────────────────────────────
-    const mkEx      = (name = "Liegestütze", t = 10) => ({ name, target: t, reps: [t] });
+    const mkEx      = (name = "Liegestütze", t = 10) => ({ name, target: t, reps: [t], done: false });
     const mkSup     = () => ({ creatine: false, midProtein: false, eveCombo: false });
     const mkSession = (date, type, exercises, mornExercises) => ({ date, type, mornExercises: mornExercises || [], exercises: exercises || [], supps: mkSup(), done: false, mornDone: false, notes: "" });
 
@@ -860,7 +886,8 @@
       return (exNames || []).map(name => {
         const prev = lt[name];
         const reps = Array.isArray(prev) && prev.length ? prev : [];
-        return { name, target: reps[0] || 10, reps };
+        // Pre-filled reps are suggestions from the last session; not yet done today.
+        return { name, target: reps[0] || 10, reps, done: false };
       });
     }
 
@@ -878,6 +905,7 @@
     const mutDelEx  = (E,ei)      => E.filter((_,k)=>k!==ei);
     const mutAddRep = (E,ei)      => E.map((ex,k)=>k!==ei?ex:{...ex,reps:[...ex.reps, ex.reps.length>0 ? ex.reps[ex.reps.length-1] : ex.target]});
     const mutName   = (E,ei,n)    => E.map((ex,k)=>k!==ei?ex:{...ex,name:n});
+    const mutToggleDone = (E,ei)  => E.map((ex,k)=>k!==ei?ex:{...ex,done:!ex.done});
     const mutTarget = (E,ei,d)    => E.map((ex,k)=>k!==ei?ex:{...ex,target:Math.max(1,ex.target+d)});
 
     // ─── Rest Timer ──────────────────────────────────────────────────────────────
@@ -1336,7 +1364,7 @@
     }
 
     // ─── ExRow ───────────────────────────────────────────────────────────────────
-    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onRepAdded }) {
+    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onRepAdded, onToggleDone }) {
       const [dialIdx, setDialIdx] = useState(null);
       const [pendingNewRep, setPendingNewRep] = useState(false);
       const [confirmDelete, setConfirmDelete] = useState(false);
@@ -1379,10 +1407,13 @@
       return (
         <div style={{ marginBottom:18 }}>
           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
+            <button onClick={() => !disabled && onToggleDone && onToggleDone()} title={ex.done ? "Erledigt" : "Als erledigt markieren"} style={{ width:38, height:38, flexShrink:0, borderRadius:3, border:`2px solid ${ex.done ? ACC : "#666"}`, background: ex.done ? ACC : "transparent", cursor: disabled ? "default" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+              {ex.done && <span style={{ color:BG, fontSize:18, fontWeight:700, lineHeight:1 }}>✓</span>}
+            </button>
             <button onClick={onOpenModal} style={{ flex:1, background:"#1a1a1a", border:`1px solid #333`, color:"#e0e0e0", padding:"9px 12px", fontSize:14, ...cond, borderRadius:3, outline:"none", textAlign:"left", cursor:"pointer", fontWeight:500 }}>{ex.name}</button>
             {canDelete && <button onClick={() => setConfirmDelete(true)} title="Löschen" style={{ width:38, height:38, background:CARD, border:`1px solid #444`, color:"#ff6b6b", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>}
           </div>
-          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", opacity: ex.done ? 1 : 0.4 }}>
             {ex.reps.map((v,i) => (
               <RepTile key={i} value={v} disabled={disabled} onClick={() => openDial(i)} />
             ))}
@@ -1470,7 +1501,7 @@
     }
 
     // ─── ExercisesSection ────────────────────────────────────────────────────────
-    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onComplete, onRepAdded, showComplete }) {
+    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onComplete, onRepAdded, onToggleDone, showComplete }) {
       const iconBtn = (icon, label, onClick, opts = {}) => (
         <button onClick={onClick} title={label} style={{
           flex:1, height:44, background:"transparent",
@@ -1493,6 +1524,7 @@
               onDelete={() => onDeleteExercise(ei)}
               onAddRep={() => onAddRep(ei)}
               onRepAdded={onRepAdded}
+              onToggleDone={() => onToggleDone(ei)}
               canDelete={exercises.length > 1}
             />
           ))}
@@ -1666,12 +1698,14 @@
       const onAddEx  = ()        => { if(trainDone)return; const n=mutAddEx(exercises);           setExercises(n); saveExercises(n); };
       const onDelEx  = (ei)      => { if(trainDone)return; const n=mutDelEx(exercises,ei);        setExercises(n); saveExercises(n); };
       const onAddRep = (ei)      => { if(trainDone)return; const n=mutAddRep(exercises,ei);       setExercises(n); saveExercises(n); };
+      const onToggleDone = (ei)  => { if(trainDone)return; const n=mutToggleDone(exercises,ei);   setExercises(n); saveExercises(n); };
       // Frühsport handlers
       const onMornSetRep = (ei,si,v) => { if(mornDone)return; const n=mutSetRep(mornExercises,ei,si,v); setMornExercises(n); saveMorn(n); };
       const onMornDelRep = (ei,si)   => { if(mornDone)return; const n=mutDelRep(mornExercises,ei,si);   setMornExercises(n); saveMorn(n); };
       const onMornAddEx  = ()        => { if(mornDone)return; const n=mutAddEx(mornExercises);           setMornExercises(n); saveMorn(n); };
       const onMornDelEx  = (ei)      => { if(mornDone)return; const n=mutDelEx(mornExercises,ei);        setMornExercises(n); saveMorn(n); };
       const onMornAddRep = (ei)      => { if(mornDone)return; const n=mutAddRep(mornExercises,ei);       setMornExercises(n); saveMorn(n); };
+      const onMornToggleDone = (ei)  => { if(mornDone)return; const n=mutToggleDone(mornExercises,ei);   setMornExercises(n); saveMorn(n); };
 
       const addCustomExercise = async (name) => {
         if (customExercises.includes(name)) return;
@@ -1706,7 +1740,8 @@
         setTimeout(() => setAnimateXP(false), 2000);
       };
 
-      const gamSessions = (exs) => exs.map(ex => ({ name: ex.name, reps: exTotalReps(ex) }));
+      // Only confirmed (done) exercises count toward XP — pre-filled suggestions don't.
+      const gamSessions = (exs) => exs.filter(ex => ex.done).map(ex => ({ name: ex.name, reps: exTotalReps(ex) }));
 
       const completeMorning = async () => {
         if (mornDone) return;
@@ -1731,6 +1766,17 @@
         await refreshSnap();
         fireGamificationEvents(result.events, result.newLevel);
       };
+
+      // Auto-complete a section (award XP) once every exercise in it is confirmed.
+      useEffect(() => {
+        if (!ready || mornDone) return;
+        if (mornExercises.length > 0 && mornExercises.every(ex => ex.done)) completeMorning();
+      }, [ready, mornDone, mornExercises]);
+
+      useEffect(() => {
+        if (!ready || trainDone || trainType !== "A") return;
+        if (exercises.length > 0 && exercises.every(ex => ex.done)) completeDay();
+      }, [ready, trainDone, trainType, exercises]);
 
       const toggleSupp = k => {
         const ns = { ...trainSupps, [k]: !trainSupps[k] };
@@ -2109,6 +2155,7 @@
               onOpenModal={(ei) => { setModalTarget({ section:"morn", ei }); setModalOpen(true); }}
               onDeleteExercise={onMornDelEx}
               onAddRep={onMornAddRep}
+              onToggleDone={onMornToggleDone}
               onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
               showComplete={false}
             />
@@ -2130,6 +2177,7 @@
                 onOpenModal={(ei) => { setModalTarget({ section:"train", ei }); setModalOpen(true); }}
                 onDeleteExercise={onDelEx}
                 onAddRep={onAddRep}
+                onToggleDone={onToggleDone}
                 onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
                 showComplete={false}
               />
