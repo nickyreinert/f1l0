@@ -2197,8 +2197,10 @@
           {supplements.length > 0 && (
             <div style={{ padding:"16px 20px 0" }}>
               <div style={{ ...lbl9, marginBottom:4 }}>SUPPLEMENTE</div>
-              {supplements.map(supp => {
-                const suppKey = supp.name.toLowerCase().replace(/\s+/g, "_");
+              {supplements.map((supp, si) => {
+                // Include time + index so two supplements with the same name
+                // (e.g. "Protein" at lunch and evening) get distinct keys.
+                const suppKey = `${si}_${supp.name}_${supp.time || ""}`.toLowerCase().replace(/\s+/g, "_");
                 const isChecked = trainSupps[suppKey] || false;
                 return (
                   <div key={suppKey} onClick={() => toggleSupp(suppKey)} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 0", borderBottom:`1px solid ${BDR}`, cursor:"pointer" }}>
