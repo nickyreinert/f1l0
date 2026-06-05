@@ -178,9 +178,8 @@
             await batch.commit();
             return;
           }
-          // Merge: for sessions, union by date using ts to pick winner per entry
-          // For everything else, highest ts wins
-          const today = new Date().toISOString().slice(0, 10);
+          // Merge: for sessions, union by date picking the newest updatedAt per
+          // entry. For everything else, highest doc-level ts wins.
           snap.forEach(cloudDoc => {
             const key    = cloudDoc.id;
             const cldVal = cloudDoc.data().value;
@@ -191,12 +190,18 @@
             if (key === "sessions") {
               const loc = locVal ? JSON.parse(locVal) : [];
               const cld = JSON.parse(cldVal);
-              // Union by date — for today local wins, for past dates highest ts wins
+              // Union by date. When a date exists on both sides, the one with the
+              // newer per-session updatedAt wins — this is what makes a workout
+              // logged on one device show up on another *the same day*. Sessions
+              // saved before updatedAt existed are treated as oldest (0), so a
+              // freshly-stamped edit from either device always takes precedence.
               const map = {};
-              cld.forEach(s => { map[s.date] = s; });
-              loc.forEach(s => {
-                if (s.date === today || !map[s.date]) map[s.date] = s;
-              });
+              const consider = (s) => {
+                const prev = map[s.date];
+                if (!prev || (s.updatedAt || 0) >= (prev.updatedAt || 0)) map[s.date] = s;
+              };
+              cld.forEach(consider);
+              loc.forEach(consider);
               const merged = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
               localStorage.setItem(locKey, JSON.stringify(merged));
             } else {
@@ -882,6 +887,36 @@
     const mkSup     = () => ({ creatine: false, midProtein: false, eveCombo: false });
     const mkSession = (date, type, exercises, mornExercises) => ({ date, type, mornExercises: mornExercises || [], exercises: exercises || [], supps: mkSup(), done: false, mornDone: false, notes: "" });
 
+    // ─── Training blocks (grease the groove) ─────────────────────────────────────
+    // A block = one batch of sets you do, then rest (cooldown) before the next block.
+    // blocks are the source of truth for the training section; session.exercises is
+    // kept as the flattened union of all block exercises so all existing
+    // stats/gamification/history code keeps working unchanged.
+    let _blockSeq = 0;
+    const mkBlockId = () => `b${Date.now().toString(36)}${(_blockSeq++).toString(36)}`;
+    const mkBlock   = (exercises) => ({ id: mkBlockId(), exercises: exercises || [mkEx("Klimmzüge")], startedAt: null, collapsed: false });
+
+    // Flatten blocks → a single exercises[] array, merging same-named exercises.
+    function flattenBlocks(blocks) {
+      const map = {};
+      const order = [];
+      (blocks || []).forEach(b => (b.exercises || []).forEach(ex => {
+        if (!map[ex.name]) { map[ex.name] = { name: ex.name, target: ex.target || 10, reps: [], done: false }; order.push(ex.name); }
+        const reps = (Array.isArray(ex.reps) ? ex.reps : []).filter(v => typeof v === 'number' && v > 0);
+        map[ex.name].reps.push(...reps);
+        if (ex.done) map[ex.name].done = true;
+      }));
+      return order.map(n => map[n]);
+    }
+
+    // Read the training blocks out of a session, synthesising one block from the
+    // flat exercises[] for sessions saved before blocks existed.
+    function sessionBlocks(session) {
+      if (Array.isArray(session?.trainBlocks) && session.trainBlocks.length) return session.trainBlocks;
+      const exs = Array.isArray(session?.exercises) ? session.exercises : [];
+      return [{ id: mkBlockId(), exercises: exs.length ? exs : [mkEx("Klimmzüge")], startedAt: null, collapsed: false }];
+    }
+
     function mkExFromTargets(exNames, lt) {
       return (exNames || []).map(name => {
         const prev = lt[name];
@@ -907,6 +942,17 @@
     const mutName   = (E,ei,n)    => E.map((ex,k)=>k!==ei?ex:{...ex,name:n});
     const mutToggleDone = (E,ei)  => E.map((ex,k)=>k!==ei?ex:{...ex,done:!ex.done});
     const mutTarget = (E,ei,d)    => E.map((ex,k)=>k!==ei?ex:{...ex,target:Math.max(1,ex.target+d)});
+
+    // ─── Block mutators ──────────────────────────────────────────────────────────
+    // Each maps one block's exercises[] through an ExRow-style mutator.
+    const mutBlockEx  = (B,bi,fn)   => B.map((b,k)=>k!==bi?b:{...b,exercises:fn(b.exercises)});
+    const mutCheckBlock = (B,bi,ts) => B.map((b,k)=>k!==bi?b:{...b,startedAt:ts,collapsed:true,exercises:b.exercises.map(ex=>({...ex,done:true}))});
+    const mutUncheckBlock = (B,bi) => B.map((b,k)=>k!==bi?b:{...b,startedAt:null,collapsed:false,exercises:b.exercises.map(ex=>({...ex,done:false}))});
+    const mutToggleCollapse = (B,bi) => B.map((b,k)=>k!==bi?b:{...b,collapsed:!b.collapsed});
+    const mutSetCollapseAll = (B,v) => B.map(b=>({...b,collapsed:v}));
+    const mutBlockStart = (B,bi,ts) => B.map((b,k)=>k!==bi?b:{...b,startedAt:ts});
+    const mutAddBlock = (B)         => [...B, mkBlock()];
+    const mutDelBlock = (B,bi)      => B.filter((_,k)=>k!==bi);
 
     // ─── Rest Timer ──────────────────────────────────────────────────────────────
     function playDone() {
@@ -964,6 +1010,72 @@
               </div>
             </div>
             <button onClick={onSkip} style={{ padding:"14px 40px", background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:3, ...cond }}>ÜBERSPRINGEN</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Cooldown countdown (block header) ───────────────────────────────────────
+    // Shows how long is left until startedAt + cooldownMs. Ticks once per second.
+    function fmtCountdown(ms) {
+      if (ms <= 0) return "BEREIT";
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      return h > 0 ? `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}` : `${m}:${String(s).padStart(2,"0")}`;
+    }
+    function Cooldown({ startedAt, cooldownMs }) {
+      const [now, setNow] = useState(Date.now());
+      useEffect(() => {
+        const id = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(id);
+      }, []);
+      const remaining = startedAt + cooldownMs - now;
+      const ready = remaining <= 0;
+      return (
+        <span style={{ ...mono, fontSize:14, fontWeight:700, color: ready ? ACC : "#e8a000", letterSpacing:1 }}>
+          {ready ? "✓ BEREIT" : `⏳ ${fmtCountdown(remaining)}`}
+        </span>
+      );
+    }
+
+    // ─── Start-time edit modal ───────────────────────────────────────────────────
+    // Big buttons to pick the hour, plus four buttons for 0/15/30/45 minutes.
+    // Sets the moment the cooldown *started* (finish = start + cooldown).
+    function StartTimeModal({ startedAt, onConfirm, onClose }) {
+      const init = new Date(startedAt);
+      const [hour, setHour] = useState(init.getHours());
+      const [min, setMin]   = useState(Math.floor(init.getMinutes() / 15) * 15);
+      const confirm = () => {
+        const d = new Date(startedAt);
+        d.setHours(hour, min, 0, 0);
+        onConfirm(d.getTime());
+      };
+      const hours = Array.from({ length: 24 }, (_, i) => i);
+      const hBtn = (h) => ({
+        height:46, background: h===hour ? ACC : "#1a1a1a", border:`1px solid ${h===hour ? ACC : "#333"}`,
+        color: h===hour ? BG : "#ccc", fontSize:17, fontWeight:700, borderRadius:4, cursor:"pointer", ...mono,
+      });
+      const mBtn = (m) => ({
+        flex:1, height:64, background: m===min ? ACC : "#1a1a1a", border:`1px solid ${m===min ? ACC : "#333"}`,
+        color: m===min ? BG : "#ccc", fontSize:22, fontWeight:700, borderRadius:4, cursor:"pointer", ...mono, minWidth:0,
+      });
+      return (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"flex-end", zIndex:2200 }} onClick={onClose}>
+          <div style={{ background:"#111", width:"100%", borderRadius:"14px 14px 0 0", padding:"20px 16px 32px", maxHeight:"88vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
+            <div style={{ ...mono, fontSize:11, color:"#555", letterSpacing:4, marginBottom:6 }}>STARTZEIT BEARBEITEN</div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", marginBottom:18, minHeight:56, background:"#0a0a0a", borderRadius:6, border:`1px solid #333` }}>
+              <span style={{ ...mono, fontSize:40, fontWeight:700, color:"#fff", letterSpacing:2 }}>{String(hour).padStart(2,"0")}:{String(min).padStart(2,"0")}</span>
+            </div>
+            <div style={{ ...lbl9, marginBottom:8 }}>STUNDE</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(6, 1fr)", gap:6, marginBottom:18 }}>
+              {hours.map(h => <button key={h} style={hBtn(h)} onClick={() => setHour(h)}>{String(h).padStart(2,"0")}</button>)}
+            </div>
+            <div style={{ ...lbl9, marginBottom:8 }}>MINUTE</div>
+            <div style={{ display:"flex", gap:8, marginBottom:18 }}>
+              {[0,15,30,45].map(m => <button key={m} style={mBtn(m)} onClick={() => setMin(m)}>{String(m).padStart(2,"0")}</button>)}
+            </div>
+            <button onClick={confirm} style={{ width:"100%", padding:16, background:ACC, color:BG, border:"none", borderRadius:4, fontSize:18, fontWeight:900, letterSpacing:3, cursor:"pointer", ...cond }}>OK</button>
           </div>
         </div>
       );
@@ -1539,6 +1651,75 @@
     }
 
 
+    // ─── BlockCard (grease the groove) ───────────────────────────────────────────
+    function BlockCard({ block, index, cooldownMs, onSetRep, onDelRep, onAddExercise, onOpenModal,
+                         onDeleteExercise, onAddRep, onRepAdded, onToggleExDone, onCheck, onUncheck,
+                         onToggleCollapse, onEditStart, canDeleteBlock, onDeleteBlock }) {
+      const [confirmDel, setConfirmDel] = useState(false);
+      const checked = block.startedAt !== null;
+      const collapsed = block.collapsed;
+
+      return (
+        <div style={{ background:CARD, border:`1px solid ${checked ? "#2a4a00" : BDR}`, borderRadius:6, marginBottom:12, overflow:"hidden" }}>
+          {/* Header */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 14px", borderBottom: collapsed ? "none" : `1px solid ${BDR}` }}>
+            <button onClick={checked ? onUncheck : onCheck} title={checked ? "Erledigt – tippen zum Zurücksetzen" : "Block als erledigt markieren"}
+              style={{ width:34, height:34, flexShrink:0, borderRadius:3, border:`2px solid ${checked ? ACC : "#666"}`, background: checked ? ACC : "transparent", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+              {checked && <span style={{ color:BG, fontSize:18, fontWeight:700, lineHeight:1 }}>✓</span>}
+            </button>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ ...mono, fontSize:11, color:"#888", letterSpacing:2 }}>BLOCK {index + 1}</div>
+              {checked && (
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:2 }}>
+                  <Cooldown startedAt={block.startedAt} cooldownMs={cooldownMs} />
+                  <button onClick={onEditStart} title="Startzeit bearbeiten" style={{ background:"none", border:"none", color:"#777", cursor:"pointer", fontSize:13, padding:0, lineHeight:1 }}>✎</button>
+                </div>
+              )}
+            </div>
+            <button onClick={onToggleCollapse} title={collapsed ? "Aufklappen" : "Zuklappen"} style={{ width:34, height:34, flexShrink:0, background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:14, lineHeight:1 }}>
+              {collapsed ? "▾" : "▴"}
+            </button>
+            {canDeleteBlock && (
+              <button onClick={() => setConfirmDel(true)} title="Block löschen" style={{ width:34, height:34, flexShrink:0, background:CARD, border:`1px solid #444`, color:"#ff6b6b", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1 }}>×</button>
+            )}
+          </div>
+
+          {/* Body */}
+          {!collapsed && (
+            <div style={{ padding:"14px 18px 18px" }}>
+              {block.exercises.map((ex, ei) => (
+                <ExRow key={ei} ex={ex} disabled={checked}
+                  onSetRep={(si,v) => onSetRep(ei,si,v)}
+                  onDelRep={si => onDelRep(ei,si)}
+                  onOpenModal={() => onOpenModal(ei)}
+                  onDelete={() => onDeleteExercise(ei)}
+                  onAddRep={() => onAddRep(ei)}
+                  onRepAdded={onRepAdded}
+                  onToggleDone={() => onToggleExDone(ei)}
+                  canDelete={block.exercises.length > 1}
+                />
+              ))}
+              {!checked && (
+                <button onClick={onAddExercise} style={{ width:"100%", height:44, background:"transparent", border:`1px solid #2a2a2a`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}>＋</button>
+              )}
+            </div>
+          )}
+
+          {confirmDel && (
+            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:"0 24px" }} onClick={() => setConfirmDel(false)}>
+              <div style={{ background:"#111", border:`1px solid #333`, borderRadius:10, padding:"28px 24px", width:"100%", maxWidth:360 }} onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize:15, color:"#ddd", marginBottom:24, lineHeight:1.5, ...cond }}>Block {index + 1} entfernen?</div>
+                <div style={{ display:"flex", gap:10 }}>
+                  <button onClick={() => setConfirmDel(false)} style={{ flex:1, padding:14, background:"transparent", border:`1px solid #444`, color:"#aaa", borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:2, ...cond }}>ABBRECHEN</button>
+                  <button onClick={() => { setConfirmDel(false); onDeleteBlock(); }} style={{ flex:1, padding:14, background:"#2a0000", border:`1px solid ${RED}`, color:RED, borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:2, fontWeight:700, ...cond }}>ENTFERNEN</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     // ─── SyncLed ──────────────────────────────────────────────────────────────────
     function SyncLed() {
       const [state, setState] = useState({ ...window._authState });
@@ -1584,8 +1765,13 @@
       const [trainType, setTrainType]       = useState("A");
       // Training section
       const [exercises, setExercises]       = useState([]);
+      const [trainBlocks, setTrainBlocks]   = useState([]);
       const [trainSupps, setTrainSupps]     = useState(mkSup());
       const [trainDone, setTrainDone]       = useState(false);
+      // Grease-the-groove cooldown between blocks (ms). Default 4h.
+      const [cooldownMs, setCooldownMs]     = useState(4 * 3600000);
+      const [tmpCooldownMin, setTmpCooldownMin] = useState(240);
+      const [editBlockIdx, setEditBlockIdx] = useState(null);
       // Frühsport section
       const [mornExercises, setMornExercises] = useState([]);
       const [mornDone, setMornDone]           = useState(false);
@@ -1623,6 +1809,8 @@
 
           const rs = cfg.restSecs ?? 60;
           setRestSecs(rs); setTmpRestSecs(rs);
+          const cdMs = cfg.cooldownMs ?? 4 * 3600000;
+          setCooldownMs(cdMs); setTmpCooldownMin(Math.round(cdMs / 60000));
           setCustomEx(cfg.customExercises || []);
           const supp = cfg.supplements || [];
           setSupplements(supp); setTmpSupplements(supp);
@@ -1655,7 +1843,9 @@
           }
 
           setTrainType(today.type);
-          setExercises(today.exercises || []);
+          const blocks = sessionBlocks(today);
+          setTrainBlocks(blocks);
+          setExercises(flattenBlocks(blocks));
           setTrainSupps(today.supps ?? mkSup());
           setTrainDone(today.done ?? false);
           setMornExercises(today.mornExercises || []);
@@ -1677,7 +1867,8 @@
         const t = todayStr();
         const all = await load("sessions") || [];
         const existing = all.find(s => s.date === t) || mkSession(t, trainType, [], []);
-        const updated = { ...existing, ...patch };
+        // Stamp every write so cross-device merge can pick the newest edit per date.
+        const updated = { ...existing, ...patch, updatedAt: Date.now() };
         const next = [...all.filter(s => s.date !== t), updated].sort((a,b) => a.date.localeCompare(b.date));
         await save("sessions", next);
         setSessions(next);
@@ -1688,17 +1879,32 @@
         type: trainType, exercises: exs ?? exercises,
         supps: su ?? trainSupps, done: d ?? trainDone,
       });
+      // Source of truth for training is blocks; exercises[] is the derived flat union.
+      const saveTrainBlocks = (blocks, su, d) => persistToday({
+        type: trainType, trainBlocks: blocks ?? trainBlocks, exercises: flattenBlocks(blocks ?? trainBlocks),
+        supps: su ?? trainSupps, done: d ?? trainDone,
+      });
       const saveMorn = (exs, md) => persistToday({
         mornExercises: exs ?? mornExercises, mornDone: md ?? mornDone,
       });
 
-      // Training handlers
-      const onSetRep = (ei,si,v) => { if(trainDone)return; const n=mutSetRep(exercises,ei,si,v); setExercises(n); saveExercises(n); };
-      const onDelRep = (ei,si)   => { if(trainDone)return; const n=mutDelRep(exercises,ei,si);   setExercises(n); saveExercises(n); };
-      const onAddEx  = ()        => { if(trainDone)return; const n=mutAddEx(exercises);           setExercises(n); saveExercises(n); };
-      const onDelEx  = (ei)      => { if(trainDone)return; const n=mutDelEx(exercises,ei);        setExercises(n); saveExercises(n); };
-      const onAddRep = (ei)      => { if(trainDone)return; const n=mutAddRep(exercises,ei);       setExercises(n); saveExercises(n); };
-      const onToggleDone = (ei)  => { if(trainDone)return; const n=mutToggleDone(exercises,ei);   setExercises(n); saveExercises(n); };
+      // Training handlers (block-based). Each commits new blocks + derived exercises.
+      const commitBlocks = (n) => { setTrainBlocks(n); setExercises(flattenBlocks(n)); saveTrainBlocks(n); };
+      const onBlkSetRep   = (bi,ei,si,v) => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutSetRep(E,ei,si,v)));
+      const onBlkDelRep   = (bi,ei,si)   => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutDelRep(E,ei,si)));
+      const onBlkAddEx    = (bi)         => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutAddEx(E)));
+      const onBlkDelEx    = (bi,ei)      => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutDelEx(E,ei)));
+      const onBlkAddRep   = (bi,ei)      => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutAddRep(E,ei)));
+      const onBlkExName   = (bi,ei,nm)   => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutName(E,ei,nm)));
+      const onBlkExDone   = (bi,ei)      => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutToggleDone(E,ei)));
+      const onCheckBlock  = (bi)         => commitBlocks(mutCheckBlock(trainBlocks,bi,Date.now()));
+      const onUncheckBlock= (bi)         => commitBlocks(mutUncheckBlock(trainBlocks,bi));
+      const onBlkCollapse = (bi)         => commitBlocks(mutToggleCollapse(trainBlocks,bi));
+      const onBlkSetStart = (bi,ts)      => commitBlocks(mutBlockStart(trainBlocks,bi,ts));
+      const onAddBlock    = ()           => commitBlocks(mutAddBlock(trainBlocks));
+      const onDelBlock    = (bi)         => commitBlocks(mutDelBlock(trainBlocks,bi));
+      const allCollapsed  = trainBlocks.length > 0 && trainBlocks.every(b => b.collapsed);
+      const onToggleAllCollapse = () => commitBlocks(mutSetCollapseAll(trainBlocks, !allCollapsed));
       // Frühsport handlers
       const onMornSetRep = (ei,si,v) => { if(mornDone)return; const n=mutSetRep(mornExercises,ei,si,v); setMornExercises(n); saveMorn(n); };
       const onMornDelRep = (ei,si)   => { if(mornDone)return; const n=mutDelRep(mornExercises,ei,si);   setMornExercises(n); saveMorn(n); };
@@ -1721,6 +1927,8 @@
         if (section === "morn") {
           const n = mutName(mornExercises, ei, exName);
           setMornExercises(n); saveMorn(n);
+        } else if (section === "block") {
+          onBlkExName(modalTarget.bi, ei, exName);
         } else {
           const n = mutName(exercises, ei, exName);
           setExercises(n); saveExercises(n);
@@ -1775,8 +1983,9 @@
 
       useEffect(() => {
         if (!ready || trainDone || trainType !== "A") return;
-        if (exercises.length > 0 && exercises.every(ex => ex.done)) completeDay();
-      }, [ready, trainDone, trainType, exercises]);
+        // Day completes once every training block has been checked off.
+        if (trainBlocks.length > 0 && trainBlocks.every(b => b.startedAt !== null)) completeDay();
+      }, [ready, trainDone, trainType, trainBlocks]);
 
       const toggleSupp = k => {
         const ns = { ...trainSupps, [k]: !trainSupps[k] };
@@ -1831,13 +2040,18 @@
       const [editEntry, setEditEntry]   = useState(null);
 
       const saveHistoryEntry = async (updated) => {
-        const migrated = migrateSession(updated);
+        // The history editor edits the flat exercises[] directly; discard any stale
+        // block structure so the edited flat list becomes the single source again.
+        const { trainBlocks: _drop, ...rest } = updated;
+        const migrated = { ...migrateSession(rest), updatedAt: Date.now() };
         const next = [...sessions.filter(s => s.date !== migrated.date), migrated]
           .sort((a,b) => a.date.localeCompare(b.date));
         setSessions(next);
         await save("sessions", next);
         if (migrated.date === todayStr()) {
-          setExercises(migrated.exercises || []);
+          const blocks = sessionBlocks(migrated);
+          setTrainBlocks(blocks);
+          setExercises(flattenBlocks(blocks));
           setMornExercises(migrated.mornExercises || []);
           setTrainSupps(migrated.supps ?? mkSup());
           setTrainDone(migrated.done ?? false);
@@ -2016,6 +2230,16 @@
                   </div>
                   <div style={{ ...mono, fontSize:13, color:"#aaa", marginBottom:28 }}>Countdown startet nach jedem Satz</div>
 
+                  <div style={{ ...lbl9, marginBottom:14 }}>COOLDOWN ZWISCHEN BLÖCKEN</div>
+                  <div style={{ display:"flex", borderRadius:4, overflow:"hidden", border:`1px solid ${BDR}`, marginBottom:8 }}>
+                    <button onClick={() => setTmpCooldownMin(v => Math.max(15, v-15))} style={{ width:72, height:72, background:CARD, border:"none", color:"#bbb", fontSize:30, cursor:"pointer", ...mono }}>−</button>
+                    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a1a", ...mono, fontSize:30, fontWeight:700 }}>
+                      {Math.floor(tmpCooldownMin/60)}h {String(tmpCooldownMin%60).padStart(2,"0")}m
+                    </div>
+                    <button onClick={() => setTmpCooldownMin(v => v+15)} style={{ width:72, height:72, background:CARD, border:"none", color:"#bbb", fontSize:30, cursor:"pointer", ...mono }}>+</button>
+                  </div>
+                  <div style={{ ...mono, fontSize:13, color:"#aaa", marginBottom:28 }}>Pause zwischen Trainingsblöcken (Grease the Groove)</div>
+
                   <div style={{ ...lbl9, marginBottom:14, marginTop:20 }}>SUPPLEMENTE</div>
                   <div style={{ marginBottom:20 }}>
                     {tmpSupplements.map((supp, si) => (
@@ -2041,8 +2265,9 @@
 
                   <button onClick={() => {
                     const rs = Math.max(10, tmpRestSecs);
-                    setRestSecs(rs); setSupplements(tmpSupplements);
-                    load("cfg").then(cfg => save("cfg", { ...(cfg||{}), restSecs: rs, supplements: tmpSupplements }));
+                    const cdMs = Math.max(15, tmpCooldownMin) * 60000;
+                    setRestSecs(rs); setSupplements(tmpSupplements); setCooldownMs(cdMs);
+                    load("cfg").then(cfg => save("cfg", { ...(cfg||{}), restSecs: rs, cooldownMs: cdMs, supplements: tmpSupplements }));
                     setMenuOpen(false);
                   }} style={{ background:ACC, color:BG, border:"none", padding:16, fontSize:18, fontWeight:900, letterSpacing:3, width:"100%", borderRadius:4, cursor:"pointer", ...cond }}>SPEICHERN</button>
                 </>}
@@ -2098,7 +2323,7 @@
           {/* ── Header ── */}
           <div style={{ padding:"20px 20px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-              <button onClick={() => { setTmpRestSecs(restSecs); setMenuTab("rpg"); setMenuOpen(true); }} style={{ background:"#0d1a00", border:`1px solid #2a4a00`, borderRadius:6, padding:"8px 10px", cursor:"pointer", textAlign:"left", minWidth:90 }}>
+              <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("rpg"); setMenuOpen(true); }} style={{ background:"#0d1a00", border:`1px solid #2a4a00`, borderRadius:6, padding:"8px 10px", cursor:"pointer", textAlign:"left", minWidth:90 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <div style={{ ...mono, fontSize:12, color:ACC, fontWeight:700 }}>LV {miniLevel}</div>
                   {miniStreak > 0 && <div style={{ ...mono, fontSize:12, color:"#aaa" }}>🔥{miniStreak}</div>}
@@ -2109,7 +2334,7 @@
               </button>
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <SyncLed />
-                <button onClick={() => { setTmpRestSecs(restSecs); setMenuTab("rpg"); setMenuOpen(true); }} style={{ background:"none", border:`1px solid #333`, color:"#bbb", cursor:"pointer", padding:"8px 10px", fontSize:18, borderRadius:4 }}>⚙</button>
+                <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("rpg"); setMenuOpen(true); }} style={{ background:"none", border:`1px solid #333`, color:"#bbb", cursor:"pointer", padding:"8px 10px", fontSize:18, borderRadius:4 }}>⚙</button>
               </div>
             </div>
 
@@ -2166,22 +2391,39 @@
           <div style={{ padding:"20px 20px 0" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
               <div style={{ fontSize:26, fontWeight:900, letterSpacing:1, color: typeColor }}>TRAINING</div>
+              {trainType === "A" && trainBlocks.length > 1 && (
+                <button onClick={onToggleAllCollapse} style={{ background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:4, cursor:"pointer", padding:"6px 12px", fontSize:10, letterSpacing:2, ...cond, fontWeight:700 }}>
+                  {allCollapsed ? "ALLE AUFKLAPPEN" : "ALLE ZUKLAPPEN"}
+                </button>
+              )}
             </div>
-            {trainType === "A" && (
-              <ExercisesSection
-                exercises={exercises}
-                done={false}
-                onSetRep={onSetRep}
-                onDelRep={onDelRep}
-                onAddExercise={onAddEx}
-                onOpenModal={(ei) => { setModalTarget({ section:"train", ei }); setModalOpen(true); }}
-                onDeleteExercise={onDelEx}
-                onAddRep={onAddRep}
-                onToggleDone={onToggleDone}
-                onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
-                showComplete={false}
-              />
-            )}
+            {trainType === "A" && <>
+              {trainBlocks.map((block, bi) => (
+                <BlockCard
+                  key={block.id}
+                  block={block}
+                  index={bi}
+                  cooldownMs={cooldownMs}
+                  onSetRep={(ei,si,v) => onBlkSetRep(bi,ei,si,v)}
+                  onDelRep={(ei,si) => onBlkDelRep(bi,ei,si)}
+                  onAddExercise={() => onBlkAddEx(bi)}
+                  onOpenModal={(ei) => { setModalTarget({ section:"block", bi, ei }); setModalOpen(true); }}
+                  onDeleteExercise={(ei) => onBlkDelEx(bi,ei)}
+                  onAddRep={(ei) => onBlkAddRep(bi,ei)}
+                  onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
+                  onToggleExDone={(ei) => onBlkExDone(bi,ei)}
+                  onCheck={() => onCheckBlock(bi)}
+                  onUncheck={() => onUncheckBlock(bi)}
+                  onToggleCollapse={() => onBlkCollapse(bi)}
+                  onEditStart={() => setEditBlockIdx(bi)}
+                  canDeleteBlock={trainBlocks.length > 1}
+                  onDeleteBlock={() => onDelBlock(bi)}
+                />
+              ))}
+              <button onClick={onAddBlock} style={{ width:"100%", padding:14, background:"transparent", border:`1px dashed #444`, color:"#aaa", borderRadius:6, cursor:"pointer", fontSize:14, letterSpacing:2, ...cond, fontWeight:700, marginBottom:12 }}>
+                ＋ BLOCK HINZUFÜGEN
+              </button>
+            </>}
             {trainType === "B" && (
               <div style={{ background:CARD, border:`1px solid ${BDR}`, borderRadius:6, padding:20, marginBottom:12 }}>
                 <div style={{ fontSize:13, color:RED, letterSpacing:4, marginBottom:12 }}>ABSOLUTES TRAININGSVERBOT</div>
@@ -2218,6 +2460,13 @@
           )}
 
           <ExerciseModal open={modalOpen} onClose={() => setModalOpen(false)} onSelect={selectExercise} recentlyUsed={recentEx} customExercises={customExercises} onAddCustom={addCustomExercise} />
+          {editBlockIdx !== null && trainBlocks[editBlockIdx]?.startedAt != null && (
+            <StartTimeModal
+              startedAt={trainBlocks[editBlockIdx].startedAt}
+              onConfirm={(ts) => { onBlkSetStart(editBlockIdx, ts); setEditBlockIdx(null); }}
+              onClose={() => setEditBlockIdx(null)}
+            />
+          )}
           {menuOpen && MenuModal()}
 
           {/* ── History entry edit modal ── */}

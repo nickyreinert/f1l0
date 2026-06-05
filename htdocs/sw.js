@@ -52,7 +52,10 @@ self.addEventListener('fetch', e => {
     e.respondWith(
       fetch(req)
         .then(res => {
-          caches.open(CACHE).then(c => c.put(req, res.clone()));
+          // Clone synchronously — the original is returned and its body consumed
+          // immediately, so cloning inside the async cache .then would be too late.
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
           return res;
         })
         .catch(() => caches.match('/index.html'))
@@ -64,7 +67,10 @@ self.addEventListener('fetch', e => {
   e.respondWith(
     caches.match(req).then(cached => {
       const networkFetch = fetch(req).then(res => {
-        if (res.ok) caches.open(CACHE).then(c => c.put(req, res.clone()));
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
+        }
         return res;
       }).catch(() => cached);
 
