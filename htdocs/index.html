@@ -2001,13 +2001,29 @@
       const selectExercise = (exName) => {
         if (!modalTarget) return;
         const { section, ei } = modalTarget;
+
+        // Look up last logged reps for this exercise name from history
+        const prior = sessions.filter(s => s.date < headerDate);
+        const lt = lastTargetsFromSessions(prior, headerDate);
+        const lastReps = lt[exName];
+
+        // Apply name + historical reps suggestion (only if exercise not yet done today)
+        const applyEx = (ex) => {
+          const base = { ...ex, name: exName };
+          if (!ex.done && lastReps && lastReps.length) {
+            return { ...base, target: lastReps[0], reps: lastReps };
+          }
+          return base;
+        };
+
         if (section === "morn") {
-          const n = mutName(mornExercises, ei, exName);
+          const n = mornExercises.map((ex, k) => k !== ei ? ex : applyEx(ex));
           setMornExercises(n); saveMorn(n);
         } else if (section === "block") {
-          onBlkExName(modalTarget.bi, ei, exName);
+          const newBlocks = mutBlockEx(trainBlocks, modalTarget.bi, E => E.map((ex, k) => k !== ei ? ex : applyEx(ex)));
+          commitBlocks(newBlocks);
         } else {
-          const n = mutName(exercises, ei, exName);
+          const n = exercises.map((ex, k) => k !== ei ? ex : applyEx(ex));
           setExercises(n); saveExercises(n);
         }
         setRecentEx(prev => [exName, ...prev.filter(e => e !== exName)].slice(0,8));
