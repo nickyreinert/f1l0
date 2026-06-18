@@ -1,4 +1,4 @@
-const CACHE = 'training-plan-v1';
+const CACHE = 'training-plan-v2';
 
 // Assets to precache on install
 const PRECACHE = [

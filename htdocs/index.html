@@ -73,29 +73,55 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
-  <script type="module">
-
-    // Import the functions you need from the SDKs you need
-
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
-    import { getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+  <script>
 
     // Define the storage-ready gate synchronously, BEFORE the first top-level await.
-    // Module scripts are deferred and this one suspends on the config fetch below; the
-    // React layer awaits window._storageReady, so it must exist before we yield — else
+    // This script initializes Firebase asynchronously; the React layer awaits
+    // window._storageReady, so it must exist before we yield — else
     // `await undefined` resolves instantly and storage reads fire before storage exists.
     let _resolveStorageReady;
     window._storageReady = new Promise(r => { _resolveStorageReady = r; });
 
-    const firebaseConfig = await fetch("/.netlify/functions/firebase-config").then(r => r.json());
+    let _fbAuth = null;
+    let _fbDb = null;
 
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const _fbAuth = getAuth(app);
-    window._fbAuth = _fbAuth;
-    const _fbDb = getFirestore(app);
-    window._fbDb = _fbDb;
+    const _bindAuthListener = () => {
+      if (!_fbAuth) return;
+      _fbAuth.onAuthStateChanged(async (user) => {
+        window.storage._uid       = user?.uid || null;
+        window._authState.user    = user;
+        window._authState.syncing = !!user;
+        window.dispatchEvent(new CustomEvent("authStateChanged", { detail: { ...window._authState } }));
+        if (user) {
+          clearTimeout(_syncReadyFallback);
+          const skipSync = sessionStorage.getItem("skipCloudSync") === "1";
+          console.log("[auth] user:", user.email, "skipSync:", skipSync);
+          if (skipSync) {
+            sessionStorage.removeItem("skipCloudSync");
+            console.log("[auth] skipped cloud sync — import reload");
+          } else {
+            await window.storage.syncFromCloud();
+          }
+          window._authState.syncing = false;
+          window.dispatchEvent(new CustomEvent("authStateChanged", { detail: { ...window._authState } }));
+          _resolveSyncReady();
+        }
+      });
+    };
+
+    (async () => {
+      const firebaseConfig = await fetch("/.netlify/functions/firebase-config").then(r => r.json());
+
+      // Initialize Firebase via the already loaded compat SDK.
+      const app = firebase.apps?.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+      _fbAuth = firebase.auth(app);
+      window._fbAuth = _fbAuth;
+      _fbDb = firebase.firestore(app);
+      window._fbDb = _fbDb;
+      _bindAuthListener();
+    })().catch((e) => {
+      console.warn("Firebase init failed:", e);
+    });
 
     // ─── Merge helpers ────────────────────────────────────────────────────────────
     function _mergeHistories(local, cloud) {
@@ -112,7 +138,7 @@
 
       _col() {
         if (!_fbDb || !this._uid) return null;
-        return collection(_fbDb, "users", this._uid, "data");
+        return _fbDb.collection("users").doc(this._uid).collection("data");
       },
 
       async get(k) {
@@ -126,14 +152,14 @@
         localStorage.setItem("tp_" + k, v);
         localStorage.setItem("tp_" + k + "_ts", String(ts)); // for sync conflict resolution
         const col = this._col();
-        if (col) setDoc(doc(col, k), { value: v, ts }).catch(() => {});
+        if (col) col.doc(k).set({ value: v, ts }).catch(() => {});
         return { key: k, value: v };
       },
 
       async delete(k) {
         localStorage.removeItem("tp_" + k);
         const col = this._col();
-        if (col) deleteDoc(doc(col, k)).catch(() => {});
+        if (col) col.doc(k).delete().catch(() => {});
         return { key: k, deleted: true };
       },
 
@@ -150,11 +176,11 @@
       async _pushAllToCloud() {
         const col = this._col();
         if (!col) return;
-        const batch = writeBatch(_fbDb);
+        const batch = _fbDb.batch();
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
           if (k?.startsWith("tp_") && !k.endsWith("_ts")) {
-            batch.set(doc(col, k.slice(3)), { value: localStorage.getItem(k), ts: Date.now() });
+            batch.set(col.doc(k.slice(3)), { value: localStorage.getItem(k), ts: Date.now() });
           }
         }
         await batch.commit();
@@ -165,14 +191,14 @@
         const col = this._col();
         if (!col) return;
         try {
-          const snap = await getDocs(col);
+          const snap = await col.get();
           if (snap.empty) {
             // No cloud data yet — push local up
-            const batch = writeBatch(_fbDb);
+            const batch = _fbDb.batch();
             for (let i = 0; i < localStorage.length; i++) {
               const k = localStorage.key(i);
               if (k?.startsWith("tp_") && !k.endsWith("_ts")) {
-                batch.set(doc(col, k.slice(3)), { value: localStorage.getItem(k), ts: Date.now() });
+                batch.set(col.doc(k.slice(3)), { value: localStorage.getItem(k), ts: Date.now() });
               }
             }
             await batch.commit();
@@ -236,42 +262,15 @@
     // Fallback: if auth never restores a user within 1.5s, unblock the UI anyway.
     const _syncReadyFallback = setTimeout(() => _resolveSyncReady(), 1500);
 
-    if (_fbAuth) {
-      _fbAuth.onAuthStateChanged(async (user) => {
-        window.storage._uid       = user?.uid || null;
-        window._authState.user    = user;
-        window._authState.syncing = !!user;
-        window.dispatchEvent(new CustomEvent("authStateChanged", { detail: { ...window._authState } }));
-        if (user) {
-          clearTimeout(_syncReadyFallback);
-          const skipSync = sessionStorage.getItem("skipCloudSync") === "1";
-          console.log("[auth] user:", user.email, "skipSync:", skipSync);
-          if (skipSync) {
-            sessionStorage.removeItem("skipCloudSync");
-            console.log("[auth] skipped cloud sync — import reload");
-          } else {
-            await window.storage.syncFromCloud();
-          }
-          window._authState.syncing = false;
-          window.dispatchEvent(new CustomEvent("authStateChanged", { detail: { ...window._authState } }));
-          _resolveSyncReady(); // real user + sync done → unblock and re-init
-        }
-        // user=null: do NOT resolve here — let the fallback timer handle the
-        // genuinely-logged-out case, so we never race ahead of a restoring session.
-      });
-    } else {
-      _resolveSyncReady();
-    }
-
     window._signInWithGoogle = async () => {
       if (!_fbAuth) return;
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(_fbAuth, provider);
+      const provider = new firebase.auth.GoogleAuthProvider();
+      await _fbAuth.signInWithPopup(provider);
     };
 
     window._signOut = async () => {
       if (!_fbAuth) return;
-      await signOut(_fbAuth);
+      await _fbAuth.signOut();
       window.storage._uid = null;
     };
   </script>
@@ -734,8 +733,8 @@
   };
   </script>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef, useCallback } = React;
+  <script type="text/plain" id="app-script">
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
     // ─── Storage ────────────────────────────────────────────────────────────────
     async function load(key) {
@@ -783,21 +782,32 @@
 
     // All exercises from a session (both sections) — used for stats/gamification.
     function sessionExercises(session) {
-      if (Array.isArray(session?.exercises) || Array.isArray(session?.mornExercises)) {
-        const map = {};
-        [...flatExs(session.mornExercises), ...flatExs(session.exercises)].forEach(ex => {
-          if (!map[ex.name]) map[ex.name] = { name: ex.name, reps: [] };
-          map[ex.name].reps.push(...ex.reps);
-        });
-        return Object.values(map);
-      }
-      // Fallback: schema 2 blocks
-      const map = {};
-      (session?.blocks || []).forEach(b => (b.exercises || []).forEach(ex => {
-        if (!map[ex.name]) map[ex.name] = { name: ex.name, reps: [] };
-        (Array.isArray(ex.reps) ? ex.reps : []).filter(v => typeof v === 'number' && v > 0).forEach(v => map[ex.name].reps.push(v));
+      const flatMap = {};
+      [...flatExs(session?.mornExercises), ...flatExs(session?.exercises)].forEach(ex => {
+        if (!flatMap[ex.name]) flatMap[ex.name] = { name: ex.name, reps: [] };
+        flatMap[ex.name].reps.push(...ex.reps);
+      });
+
+      // Import/legacy safety: some sessions may have richer trainBlocks data while
+      // flat exercises[] is stale or incomplete. Fill only missing exercise names
+      // from blocks to avoid double-counting when both sources are in sync.
+      const blockMap = {};
+      const blocks = Array.isArray(session?.trainBlocks)
+        ? session.trainBlocks
+        : (session?.blocks || []);
+      blocks.forEach(b => (b.exercises || []).forEach(ex => {
+        const reps = (Array.isArray(ex.reps) ? ex.reps : []).filter(v => typeof v === 'number' && v > 0);
+        if (!reps.length) return;
+        if (!blockMap[ex.name]) blockMap[ex.name] = { name: ex.name, reps: [] };
+        blockMap[ex.name].reps.push(...reps);
       }));
-      return Object.values(map);
+
+      const merged = { ...flatMap };
+      Object.keys(blockMap).forEach((name) => {
+        if (!merged[name] || merged[name].reps.length === 0) merged[name] = blockMap[name];
+      });
+
+      return Object.values(merged);
     }
     const exTotalReps = ex => (Array.isArray(ex.reps) ? ex.reps : []).reduce((a,v) => a + (v || 0), 0);
     const exSetCount  = ex => (Array.isArray(ex.reps) ? ex.reps : []).filter(v => v > 0).length;
@@ -849,7 +859,7 @@
         cnt[ex.name].sets += exSetCount(ex);
         cnt[ex.name].reps += exTotalReps(ex);
       }));
-      return Object.entries(cnt).sort((a,b) => b[1].reps - a[1].reps).slice(0, 8);
+      return Object.entries(cnt).sort((a,b) => b[1].reps - a[1].reps);
     }
     function calcExerciseProgression(sessions, name) {
       const out = [];
@@ -1558,14 +1568,6 @@
     function ExerciseModal({ open, onClose, onSelect, recentlyUsed, customExercises, onAddCustom }) {
       const [filter, setFilter] = useState(() => recentlyUsed.length > 0 ? "Zuletzt" : "Zug");
       const [customName, setCustomName] = useState("");
-      useEffect(() => {
-        if (!open) return;
-        const handleKeyDown = (e) => {
-          if (e.key === "Escape") { e.preventDefault(); onClose(); }
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-      }, [open]);
       // Reset to "Zuletzt" when modal opens if there are recent exercises
       useEffect(() => {
         if (open) setFilter(recentlyUsed.length > 0 ? "Zuletzt" : "Zug");
@@ -1932,8 +1934,8 @@
         return () => window.removeEventListener("cloudSyncComplete", onSync);
       }, [initApp]);
 
-      const persistToday = async (patch) => {
-        const t = todayStr();
+      const persistSelectedDay = async (patch) => {
+        const t = headerDate;
         const all = await load("sessions") || [];
         const existing = all.find(s => s.date === t) || mkSession(t, trainType, [], []);
         // Stamp every write so cross-device merge can pick the newest edit per date.
@@ -1944,16 +1946,16 @@
         return updated;
       };
 
-      const saveExercises = (exs, su, d) => persistToday({
+      const saveExercises = (exs, su, d) => persistSelectedDay({
         type: trainType, exercises: exs ?? exercises,
         supps: su ?? trainSupps, done: d ?? trainDone,
       });
       // Source of truth for training is blocks; exercises[] is the derived flat union.
-      const saveTrainBlocks = (blocks, su, d) => persistToday({
+      const saveTrainBlocks = (blocks, su, d) => persistSelectedDay({
         type: trainType, trainBlocks: blocks ?? trainBlocks, exercises: flattenBlocks(blocks ?? trainBlocks),
         supps: su ?? trainSupps, done: d ?? trainDone,
       });
-      const saveMorn = (exs, md) => persistToday({
+      const saveMorn = (exs, md) => persistSelectedDay({
         mornExercises: exs ?? mornExercises, mornDone: md ?? mornDone,
       });
 
@@ -2006,6 +2008,34 @@
         setModalOpen(false);
       };
 
+      // ─── History edit / selected day ───────────────────────────────────────
+      const [histOffset, setHistOffset] = useState(0);
+      const [editEntry, setEditEntry]   = useState(null);
+      const [headerDayOffset, setHeaderDayOffset] = useState(0);
+
+      const headerDate = useMemo(() => {
+        const d = new Date();
+        d.setDate(d.getDate() + headerDayOffset);
+        return d.toISOString().slice(0, 10);
+      }, [headerDayOffset]);
+      const isViewingToday = headerDate === todayStr();
+
+      const selectedSession = useMemo(() => {
+        return sessions.find(s => s.date === headerDate) || mkSession(headerDate, "A", [], []);
+      }, [sessions, headerDate]);
+
+      useEffect(() => {
+        const visible = migrateSession(selectedSession);
+        setTrainType(visible.type);
+        const blocks = sessionBlocks(visible);
+        setTrainBlocks(blocks);
+        setExercises(flattenBlocks(blocks));
+        setTrainSupps(visible.supps ?? mkSup());
+        setTrainDone(visible.done ?? false);
+        setMornExercises(visible.mornExercises || []);
+        setMornDone(visible.mornDone ?? false);
+      }, [selectedSession]);
+
       const fireGamificationEvents = (events, newLevel) => {
         const levelUpEv = events.find(e => e.type === "levelUp");
         const achEv     = events.find(e => e.type === "achievements");
@@ -2021,7 +2051,7 @@
       const gamSessions = (exs) => exs.filter(ex => ex.done).map(ex => ({ name: ex.name, reps: exTotalReps(ex) }));
 
       const completeMorning = async () => {
-        if (mornDone) return;
+        if (mornDone || !isViewingToday) return;
         setMornDone(true);
         await saveMorn(null, true);
         const result = await window.Gamification.processWorkoutComplete({
@@ -2032,7 +2062,7 @@
       };
 
       const completeDay = async () => {
-        if (trainDone) return;
+        if (trainDone || !isViewingToday) return;
         setTrainDone(true);
         await saveExercises(null, null, true);
         setLastTrainDate(todayStr());
@@ -2046,15 +2076,15 @@
 
       // Auto-complete a section (award XP) once every exercise in it is confirmed.
       useEffect(() => {
-        if (!ready || mornDone) return;
+        if (!ready || !isViewingToday || mornDone) return;
         if (mornExercises.length > 0 && mornExercises.every(ex => ex.done)) completeMorning();
-      }, [ready, mornDone, mornExercises]);
+      }, [ready, isViewingToday, mornDone, mornExercises]);
 
       useEffect(() => {
-        if (!ready || trainDone || trainType !== "A") return;
+        if (!ready || !isViewingToday || trainDone || trainType !== "A") return;
         // Day completes once every training block has been checked off.
         if (trainBlocks.length > 0 && trainBlocks.every(b => b.startedAt !== null)) completeDay();
-      }, [ready, trainDone, trainType, trainBlocks]);
+      }, [ready, isViewingToday, trainDone, trainType, trainBlocks]);
 
       const toggleSupp = k => {
         const ns = { ...trainSupps, [k]: !trainSupps[k] };
@@ -2104,17 +2134,6 @@
 
       const typeColor = trainType === "A" ? ACC : RED;
 
-      // ─── History edit ─────────────────────────────────────────────────────────
-      const [histOffset, setHistOffset] = useState(0);
-      const [editEntry, setEditEntry]   = useState(null);
-      const [headerDayOffset, setHeaderDayOffset] = useState(0);
-
-      const headerDate = useMemo(() => {
-        const d = new Date();
-        d.setDate(d.getDate() + headerDayOffset);
-        return d.toISOString().slice(0, 10);
-      }, [headerDayOffset]);
-
       const openHeaderDayEditor = () => {
         const existing = sessions.find(s => s.date === headerDate);
         setEditEntry(existing ? { ...existing } : mkSession(headerDate, "A", []));
@@ -2129,7 +2148,7 @@
           .sort((a,b) => a.date.localeCompare(b.date));
         setSessions(next);
         await save("sessions", next);
-        if (migrated.date === todayStr()) {
+        if (migrated.date === headerDate) {
           const blocks = sessionBlocks(migrated);
           setTrainBlocks(blocks);
           setExercises(flattenBlocks(blocks));
@@ -2148,12 +2167,44 @@
       const [importJson, setImportJson] = useState("");
       const [importErr, setImportErr]   = useState("");
       const [cloudState, setCloudState] = useState({ ...window._authState });
+      const modalOrderRef = useRef({ exercise: 0, startTime: 0, menu: 0, history: 0 });
+      const modalSeqRef = useRef(0);
+      const prevOpenRef = useRef({ exercise: false, startTime: false, menu: false, history: false });
 
       useEffect(() => {
-        const h = (e) => { if (e.key === "Escape" && menuOpen) { e.preventDefault(); setMenuOpen(false); } };
-        window.addEventListener("keydown", h);
-        return () => window.removeEventListener("keydown", h);
-      }, [menuOpen]);
+        const currentOpen = {
+          exercise: modalOpen,
+          startTime: editBlockIdx !== null,
+          menu: menuOpen,
+          history: !!editEntry,
+        };
+        Object.keys(currentOpen).forEach((key) => {
+          if (currentOpen[key] && !prevOpenRef.current[key]) {
+            modalOrderRef.current[key] = ++modalSeqRef.current;
+          }
+        });
+        prevOpenRef.current = currentOpen;
+      }, [modalOpen, editBlockIdx, menuOpen, editEntry]);
+
+      useEffect(() => {
+        const handleEscape = (e) => {
+          if (e.key !== "Escape") return;
+          const openModals = [
+            { key: "exercise", open: modalOpen, close: () => setModalOpen(false) },
+            { key: "startTime", open: editBlockIdx !== null, close: () => setEditBlockIdx(null) },
+            { key: "menu", open: menuOpen, close: () => setMenuOpen(false) },
+            { key: "history", open: !!editEntry, close: () => setEditEntry(null) },
+          ].filter((m) => m.open);
+          if (!openModals.length) return;
+          const top = openModals.reduce((a, b) => (
+            modalOrderRef.current[b.key] > modalOrderRef.current[a.key] ? b : a
+          ));
+          e.preventDefault();
+          top.close();
+        };
+        window.addEventListener("keydown", handleEscape);
+        return () => window.removeEventListener("keydown", handleEscape);
+      }, [modalOpen, editBlockIdx, menuOpen, editEntry]);
 
       useEffect(() => {
         const h = (e) => setCloudState({ ...e.detail });
@@ -2441,11 +2492,6 @@
                     <button onClick={() => setHeaderDayOffset(0)} title="Zu heute" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"2px 8px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:10, letterSpacing:1, lineHeight:1, ...cond }}>HEUTE</button>
                     <button onClick={() => setHeaderDayOffset(o => Math.min(0, o + 1))} title="Nächster Tag" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"2px 8px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:14, lineHeight:1 }}>›</button>
                   </div>
-                  {daysSince !== null && daysSince > 0 && (
-                    <div style={{ ...mono, fontSize:11, color: urgency >= 3 ? urgencyColor : "#666", letterSpacing:2 }}>
-                      {daysSince}d SEIT LETZTEM TRAINING
-                    </div>
-                  )}
                 </div>
               </>;
             })()}
@@ -2601,8 +2647,31 @@
   </script>
 
   <script>
+    (() => {
+      const source = document.getElementById('app-script')?.textContent || '';
+      const compiled = Babel.transform(source, {
+        filename: 'app.jsx',
+        presets: [[Babel.availablePresets.react, { runtime: 'classic' }]],
+      }).code;
+      const script = document.createElement('script');
+      script.text = compiled;
+      document.body.appendChild(script);
+    })();
+  </script>
+
+  <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
+      window.addEventListener('load', async () => {
+        const isLocalhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+        if (isLocalhost) {
+          try {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map((reg) => reg.unregister()));
+            const keys = await caches.keys();
+            await Promise.all(keys.map((key) => caches.delete(key)));
+          } catch {}
+          return;
+        }
         navigator.serviceWorker.register('/sw.js').catch(() => {});
       });
     }
