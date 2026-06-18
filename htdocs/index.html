@@ -759,17 +759,31 @@
     // ─── Stats helpers ───────────────────────────────────────────────────────────
     function calcStreak(history) {
       if (!history.length) return { cur: 0, best: 0 };
-      const dates = [...new Set(history.map(e => e.date))].sort((a,b) => b.localeCompare(a));
-      let cur = 0, best = 0, run = 0;
+      // Build a date→session map (one session per date).
+      const byDate = {};
+      history.forEach(s => { byDate[s.date] = s; });
+      const dates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
+
+      let best = 0, cur = 0, runTrain = 0, inCurrent = true;
+      // Start from today if logged, otherwise yesterday (streak still alive).
       let expected = dates[0] === todayStr() ? todayStr() : yesterdayStr();
+
       for (const d of dates) {
-        if (d !== expected) { best = Math.max(best, run); run = 0; expected = d; }
-        run++;
-        if (d === dates[0]) cur = run;
+        if (d !== expected) {
+          // Calendar gap → streak broken.
+          if (inCurrent) { cur = runTrain; inCurrent = false; }
+          best = Math.max(best, runTrain);
+          runTrain = 0;
+          expected = d; // start a new (older) run from here
+        }
+        // Rest days (type B) bridge the gap but don't count as streak days.
+        if ((byDate[d]?.type ?? 'A') === 'A') runTrain++;
         const dd = new Date(expected + "T12:00:00"); dd.setDate(dd.getDate() - 1);
         expected = dd.toISOString().slice(0, 10);
       }
-      return { cur, best: Math.max(best, run) };
+      best = Math.max(best, runTrain);
+      if (inCurrent) cur = runTrain;
+      return { cur, best };
     }
     // ─── Session model (schema 3) ────────────────────────────────────────────────
     // A session = one date. Two flat exercise arrays: mornExercises[] + exercises[].
@@ -2300,7 +2314,7 @@
                   ? <div style={{ padding:"60px 0", textAlign:"center" }}><div style={{ ...mono, fontSize:12, color:"#aaa", letterSpacing:3 }}>NOCH KEINE DATEN</div></div>
                   : <>
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:8 }}>
-                        <KPI label="STREAK" val={streak.cur} unit="Tage" large /><KPI label="REKORD" val={streak.best} unit="Tage" large /><KPI label="SESSIONS" val={totalDays} unit="gesamt" large />
+                        <KPI label="STREAK" val={streak.cur} unit="Trainingstage" large /><KPI label="REKORD" val={streak.best} unit="Trainingstage" large /><KPI label="SESSIONS" val={totalDays} unit="gesamt" large />
                       </div>
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:20 }}>
                         <KPI label="TOTAL REPS" val={totalReps.toLocaleString("de")} unit="Wiederholungen" /><KPI label="TOTAL SÄTZE" val={totalSets.toLocaleString("de")} unit="abgeschlossen" />
