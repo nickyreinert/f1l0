@@ -906,17 +906,16 @@
     const mkBlockId = () => `b${Date.now().toString(36)}${(_blockSeq++).toString(36)}`;
     const mkBlock   = (exercises) => ({ id: mkBlockId(), exercises: exercises || [mkEx("Klimmzüge")], startedAt: null, collapsed: false });
 
-    // Flatten blocks → a single exercises[] array, merging same-named exercises.
+    // Flatten blocks → a single exercises[] array, keeping one entry per block-exercise pair.
+    // Same-named exercises across different blocks are NOT merged so the history editor
+    // shows them as separate rows (e.g. 2 × Liegestütze 3×10, not 1 × Liegestütze 6×10).
     function flattenBlocks(blocks) {
-      const map = {};
-      const order = [];
+      const result = [];
       (blocks || []).forEach(b => (b.exercises || []).forEach(ex => {
-        if (!map[ex.name]) { map[ex.name] = { name: ex.name, target: ex.target || 10, reps: [], done: false }; order.push(ex.name); }
         const reps = (Array.isArray(ex.reps) ? ex.reps : []).filter(v => typeof v === 'number' && v > 0);
-        map[ex.name].reps.push(...reps);
-        if (ex.done) map[ex.name].done = true;
+        result.push({ name: ex.name, target: ex.target || 10, reps, done: ex.done || false });
       }));
-      return order.map(n => map[n]);
+      return result;
     }
 
     // Read the training blocks out of a session, synthesising one block from the
