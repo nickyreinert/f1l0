@@ -985,17 +985,23 @@
     }
 
     function RestTimer({ seconds, onDone, onSkip }) {
+      const endAt = useRef(Date.now() + seconds * 1000);
       const [remaining, setRemaining] = useState(seconds);
       const doneRef = useRef(false);
 
       useEffect(() => {
-        if (remaining <= 0) {
-          if (!doneRef.current) { doneRef.current = true; playDone(); onDone(); }
-          return;
-        }
-        const id = setTimeout(() => setRemaining(r => r - 1), 1000);
-        return () => clearTimeout(id);
-      }, [remaining]);
+        const id = setInterval(() => {
+          const left = Math.ceil((endAt.current - Date.now()) / 1000);
+          if (left <= 0) {
+            clearInterval(id);
+            setRemaining(0);
+            if (!doneRef.current) { doneRef.current = true; playDone(); onDone(); }
+          } else {
+            setRemaining(left);
+          }
+        }, 500);
+        return () => clearInterval(id);
+      }, []);
 
       const pct = ((seconds - remaining) / seconds) * 100;
       const urgentColor = remaining <= 10 ? RED : ACC;
