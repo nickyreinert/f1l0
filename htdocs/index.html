@@ -1864,6 +1864,10 @@
       const [customExercises, setCustomEx]  = useState([]);
       const [supplements, setSupplements]   = useState([]);
       const [tmpSupplements, setTmpSupplements] = useState([]);
+      const [suppDeleteConfirm, setSuppDeleteConfirm] = useState(null);
+      const [suppDragIdx, setSuppDragIdx]     = useState(null);
+      const [suppDragOver, setSuppDragOver]   = useState(null);
+      const suppDragRef = useRef({ fromIdx: null });
 
       const [rpgSnap, setRpgSnap]           = useState(null);
       const [levelUpEvent, setLevelUpEvent] = useState(null);
@@ -2183,7 +2187,11 @@
 
       // ─── Settings + Stats modal ───────────────────────────────────────────────
       const [menuOpen, setMenuOpen] = useState(false);
-      const [menuTab, setMenuTab]   = useState("rpg");
+      useEffect(() => {
+        document.body.style.overflow = menuOpen ? 'hidden' : '';
+        return () => { document.body.style.overflow = ''; };
+      }, [menuOpen]);
+      const [menuTab, setMenuTab]   = useState("stats");
       const [copyOk, setCopyOk]     = useState(false);
       const [importJson, setImportJson] = useState("");
       const [importErr, setImportErr]   = useState("");
@@ -2281,13 +2289,12 @@
         );
 
         return (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", display:"flex", alignItems:"flex-end", zIndex:1500 }} onClick={() => setMenuOpen(false)}>
-            <div style={{ background:"#111", width:"100%", borderRadius:"14px 14px 0 0", height:"88vh", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"stretch", zIndex:1500 }} onClick={() => setMenuOpen(false)}>
+            <div style={{ background:"#111", width:"100%", borderRadius:0, height:"100%", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex", borderBottom:`1px solid ${BDR}`, flexShrink:0 }}>
-                {TAB("rpg","RPG")}{TAB("stats","STATS")}{TAB("exercises","ÜBUNGEN")}{TAB("settings","SETTINGS")}{TAB("data","DATEN")}
+                {TAB("stats","STATS")}{TAB("exercises","ÜBUNGEN")}{TAB("settings","SETTINGS")}{TAB("data","DATEN")}
               </div>
               <div style={{ overflowY:"auto", padding:"20px 20px 40px", flex:1, minHeight:0 }}>
-                {menuTab === "rpg" && <RPGPanel snap={rpgSnap} sessions={sessions} animateXP={animateXP} />}
 
                 {menuTab === "stats" && (sessions.length === 0
                   ? <div style={{ padding:"60px 0", textAlign:"center" }}><div style={{ ...mono, fontSize:12, color:"#aaa", letterSpacing:3 }}>NOCH KEINE DATEN</div></div>
@@ -2345,32 +2352,34 @@
                   ? <div style={{ padding:"60px 0", textAlign:"center" }}><div style={{ ...mono, fontSize:12, color:"#aaa", letterSpacing:3 }}>NOCH KEINE DATEN</div></div>
                   : <>
                       <div style={{ ...lbl9, marginBottom:16 }}>GESAMTVOLUMEN NACH ÜBUNG</div>
-                      {topEx.map(([name, { sets, reps }]) => {
-                        const prog = calcExerciseProgression(sessions, name);
-                        const maxR = Math.max(...prog.map(p => p.reps), 1);
-                        return (
-                          <div key={name} style={{ background:"#0a0a0a", border:`1px solid ${BDR}`, borderRadius:6, padding:16, marginBottom:10 }}>
-                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
-                              <span style={{ fontSize:16, fontWeight:700, color:"#ddd" }}>{name}</span>
-                              <span style={{ ...mono, fontSize:12, color:"#bbb" }}>{reps.toLocaleString("de")} reps · {sets} sätze</span>
-                            </div>
-                            <div style={{ height:4, background:"#1a1a1a", borderRadius:2, marginBottom: prog.length > 1 ? 14 : 0 }}>
-                              <div style={{ height:4, background:ACC, opacity:0.5, width:`${(reps / topEx[0][1].reps) * 100}%`, borderRadius:2 }} />
-                            </div>
-                            {prog.length > 1 && <>
-                              <div style={{ ...lbl9, marginBottom:6 }}>PROGRESSION</div>
-                              <div style={{ display:"flex", gap:3, alignItems:"flex-end", height:40 }}>
-                                {prog.map((p,i) => (
-                                  <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
-                                    <div style={{ width:"100%", background: i===prog.length-1 ? ACC : "#2a4a00", borderRadius:"2px 2px 0 0", height:`${Math.max(3,(p.reps/maxR)*30)}px`, opacity: i===prog.length-1 ? 0.85 : 0.5 }} />
-                                    <div style={{ ...mono, fontSize:7, color:"#888" }}>{p.reps}</div>
-                                  </div>
-                                ))}
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:10 }}>
+                        {topEx.map(([name, { sets, reps }]) => {
+                          const prog = calcExerciseProgression(sessions, name);
+                          const maxR = Math.max(...prog.map(p => p.reps), 1);
+                          return (
+                            <div key={name} style={{ background:"#0a0a0a", border:`1px solid ${BDR}`, borderRadius:6, padding:16 }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
+                                <span style={{ fontSize:16, fontWeight:700, color:"#ddd" }}>{name}</span>
+                                <span style={{ ...mono, fontSize:12, color:"#bbb" }}>{reps.toLocaleString("de")} reps · {sets} sätze</span>
                               </div>
-                            </>}
-                          </div>
-                        );
-                      })}
+                              <div style={{ height:4, background:"#1a1a1a", borderRadius:2, marginBottom: prog.length > 1 ? 14 : 0 }}>
+                                <div style={{ height:4, background:ACC, opacity:0.5, width:`${(reps / topEx[0][1].reps) * 100}%`, borderRadius:2 }} />
+                              </div>
+                              {prog.length > 1 && <>
+                                <div style={{ ...lbl9, marginBottom:6 }}>PROGRESSION</div>
+                                <div style={{ display:"flex", gap:3, alignItems:"flex-end", height:40 }}>
+                                  {prog.map((p,i) => (
+                                    <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                                      <div style={{ width:"100%", background: i===prog.length-1 ? ACC : "#2a4a00", borderRadius:"2px 2px 0 0", height:`${Math.max(3,(p.reps/maxR)*30)}px`, opacity: i===prog.length-1 ? 0.85 : 0.5 }} />
+                                      <div style={{ ...mono, fontSize:7, color:"#888" }}>{p.reps}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </>
                 )}
 
@@ -2396,20 +2405,73 @@
                   <div style={{ ...lbl9, marginBottom:14, marginTop:20 }}>SUPPLEMENTE</div>
                   <div style={{ marginBottom:20 }}>
                     {tmpSupplements.map((supp, si) => (
-                      <div key={si} style={{ background:CARD, border:`1px solid ${BDR}`, borderRadius:6, padding:14, marginBottom:10, display:"flex", gap:10, alignItems:"flex-start" }}>
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <input type="text" placeholder="Supplement (z.B. Kreatin)" value={supp.name}
-                            onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],name:e.target.value}; setTmpSupplements(ns); }}
-                            style={{ width:"100%", background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:13, marginBottom:8, boxSizing:"border-box" }} />
-                          <input type="text" placeholder="Menge (z.B. 3g)" value={supp.amount || ""}
-                            onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],amount:e.target.value}; setTmpSupplements(ns); }}
-                            style={{ width:"100%", background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:13, marginBottom:8, boxSizing:"border-box" }} />
-                          <input type="text" placeholder="Zeit (z.B. morgens)" value={supp.time || ""}
-                            onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],time:e.target.value}; setTmpSupplements(ns); }}
-                            style={{ width:"100%", background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:13, boxSizing:"border-box" }} />
-                        </div>
-                        <button onClick={() => setTmpSupplements(tmpSupplements.filter((_,j)=>j!==si))}
-                          style={{ width:36, height:36, background:"transparent", border:`1px solid #661111`, color:"#aa6666", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+                      <div
+                        key={si}
+                        data-supp-row={si}
+                        style={{
+                          background: suppDragIdx === si ? "#1a2800" : suppDragOver === si ? "#111800" : CARD,
+                          border: `1px solid ${suppDragIdx === si ? ACC : BDR}`,
+                          borderRadius:6, padding:"6px 8px", marginBottom:6,
+                          display:"flex", gap:6, alignItems:"center",
+                          opacity: suppDragIdx === si ? 0.6 : 1,
+                          transition:"background 0.12s, opacity 0.12s",
+                        }}
+                      >
+                        {/* Drag handle */}
+                        <div
+                          style={{ cursor:"grab", color:"#555", fontSize:20, lineHeight:1, padding:"0 2px", touchAction:"none", userSelect:"none", flexShrink:0 }}
+                          onPointerDown={(e) => {
+                            e.currentTarget.setPointerCapture(e.pointerId);
+                            suppDragRef.current.fromIdx = si;
+                            setSuppDragIdx(si);
+                            setSuppDeleteConfirm(null);
+                          }}
+                          onPointerMove={(e) => {
+                            if (suppDragRef.current.fromIdx === null) return;
+                            const el = document.elementFromPoint(e.clientX, e.clientY);
+                            const row = el?.closest('[data-supp-row]');
+                            if (row) {
+                              const idx = parseInt(row.getAttribute('data-supp-row'), 10);
+                              if (!isNaN(idx)) setSuppDragOver(idx);
+                            }
+                          }}
+                          onPointerUp={() => {
+                            const from = suppDragRef.current.fromIdx;
+                            if (from !== null && suppDragOver !== null && from !== suppDragOver) {
+                              const ns = [...tmpSupplements];
+                              const [item] = ns.splice(from, 1);
+                              ns.splice(suppDragOver, 0, item);
+                              setTmpSupplements(ns);
+                            }
+                            suppDragRef.current.fromIdx = null;
+                            setSuppDragIdx(null);
+                            setSuppDragOver(null);
+                          }}
+                        >⠿</div>
+                        {/* Name */}
+                        <input type="text" placeholder="Name" value={supp.name}
+                          onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],name:e.target.value}; setTmpSupplements(ns); }}
+                          style={{ flex:2, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"6px 8px", borderRadius:3, outline:"none", fontSize:12, boxSizing:"border-box" }} />
+                        {/* Volume/Amount */}
+                        <input type="text" placeholder="Menge" value={supp.amount || ""}
+                          onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],amount:e.target.value}; setTmpSupplements(ns); }}
+                          style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"6px 8px", borderRadius:3, outline:"none", fontSize:12, boxSizing:"border-box" }} />
+                        {/* Time */}
+                        <input type="text" placeholder="Zeit" value={supp.time || ""}
+                          onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],time:e.target.value}; setTmpSupplements(ns); }}
+                          style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"6px 8px", borderRadius:3, outline:"none", fontSize:12, boxSizing:"border-box" }} />
+                        {/* Delete */}
+                        {suppDeleteConfirm === si ? (
+                          <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+                            <button onClick={() => { setTmpSupplements(tmpSupplements.filter((_,j)=>j!==si)); setSuppDeleteConfirm(null); }}
+                              style={{ height:30, padding:"0 8px", background:"#661111", border:"none", color:"#ffaaaa", borderRadius:3, cursor:"pointer", fontSize:11, letterSpacing:1, ...cond, fontWeight:700 }}>JA</button>
+                            <button onClick={() => setSuppDeleteConfirm(null)}
+                              style={{ height:30, padding:"0 8px", background:"transparent", border:`1px solid #333`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:11, letterSpacing:1, ...cond }}>NEIN</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setSuppDeleteConfirm(si)}
+                            style={{ width:30, height:30, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:16, lineHeight:1, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+                        )}
                       </div>
                     ))}
                     <button onClick={() => setTmpSupplements([...tmpSupplements, { name:"", amount:"", time:"" }])}
@@ -2476,7 +2538,7 @@
           {/* ── Header ── */}
           <div style={{ padding:"20px 20px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-              <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("rpg"); setMenuOpen(true); }} style={{ background:"#0d1a00", border:`1px solid #2a4a00`, borderRadius:6, padding:"8px 10px", cursor:"pointer", textAlign:"left", minWidth:90 }}>
+              <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("stats"); setMenuOpen(true); }} style={{ background:"#0d1a00", border:`1px solid #2a4a00`, borderRadius:6, padding:"8px 10px", cursor:"pointer", textAlign:"left", minWidth:90 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <div style={{ ...mono, fontSize:12, color:ACC, fontWeight:700 }}>LV {miniLevel}</div>
                   {miniStreak > 0 && <div style={{ ...mono, fontSize:12, color:"#aaa" }}>🔥{miniStreak}</div>}
@@ -2487,7 +2549,7 @@
               </button>
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <SyncLed />
-                <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("rpg"); setMenuOpen(true); }} style={{ background:"none", border:`1px solid #333`, color:"#bbb", cursor:"pointer", padding:"8px 10px", fontSize:18, borderRadius:4 }}>⚙</button>
+                <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("stats"); setMenuOpen(true); }} style={{ background:"none", border:`1px solid #333`, color:"#bbb", cursor:"pointer", padding:"8px 10px", fontSize:18, borderRadius:4 }}>⚙</button>
               </div>
             </div>
 
