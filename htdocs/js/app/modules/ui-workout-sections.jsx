@@ -200,7 +200,7 @@
               {checked && <span style={{ color:BG, fontSize:18, fontWeight:700, lineHeight:1 }}>✓</span>}
             </button>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ ...mono, fontSize:11, color:"#888", letterSpacing:2 }}>BLOCK {index + 1}</div>
+              <div style={{ ...mono, fontSize:11, color:"#888", letterSpacing:2 }}>{(block.label || `BLOCK ${index + 1}`).toUpperCase()}</div>
               {checked && (
                 <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:2 }}>
                   <span style={{ ...mono, fontSize:14, fontWeight:700, color:"#e8a000", letterSpacing:1 }}>

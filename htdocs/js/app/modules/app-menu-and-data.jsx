@@ -197,6 +197,10 @@
                 )}
 
                 {menuTab === "settings" && <>
+                  <div style={{ ...lbl9, marginBottom:14 }}>BLOCKS</div>
+                  <BlockPlanEditor plan={tmpBlockPlan} onChange={setTmpBlockPlan} />
+                  <div style={{ height:1, background:BDR, margin:"24px 0" }} />
+
                   <div style={{ ...lbl9, marginBottom:14 }}>REST TIMER AFTER SET</div>
                   <div style={{ display:"flex", borderRadius:4, overflow:"hidden", border:`1px solid ${BDR}`, marginBottom:8 }}>
                     <button onClick={() => setTmpRestSecs(v => Math.max(10, v-10))} style={{ width:72, height:72, background:CARD, border:"none", color:"#bbb", fontSize:30, cursor:"pointer", ...mono }}>−</button>
@@ -294,8 +298,9 @@
                   <button onClick={() => {
                     const rs = Math.max(10, tmpRestSecs);
                     const cdMs = Math.max(15, tmpCooldownMin) * 60000;
-                    setRestSecs(rs); setSupplements(tmpSupplements); setCooldownMs(cdMs);
-                    load("cfg").then(cfg => save("cfg", { ...(cfg||{}), restSecs: rs, cooldownMs: cdMs, supplements: tmpSupplements }));
+                    const bp = normalizeBlockPlan(tmpBlockPlan);
+                    setRestSecs(rs); setSupplements(tmpSupplements); setCooldownMs(cdMs); setBlockPlan(bp);
+                    load("cfg").then(cfg => save("cfg", { ...(cfg||{}), restSecs: rs, cooldownMs: cdMs, supplements: tmpSupplements, blockPlan: bp }));
                     setMenuOpen(false);
                   }} style={{ background:ACC, color:BG, border:"none", padding:16, fontSize:18, fontWeight:900, letterSpacing:3, width:"100%", borderRadius:4, cursor:"pointer", ...cond }}>SAVE</button>
                 </>}

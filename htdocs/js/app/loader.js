@@ -5,6 +5,7 @@
     "js/app/modules/ui-inputs.jsx",
     "js/app/modules/ui-workout-sections.jsx",
     "js/app/modules/ui-sync-history.jsx",
+    "js/app/modules/domain-block-planning.jsx",
     "js/app/modules/app-controller.jsx",
     "js/app/modules/app-menu-and-data.jsx",
     "js/app/modules/app-main-view.jsx",

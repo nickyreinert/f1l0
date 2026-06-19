@@ -207,7 +207,7 @@
     // stats/gamification/history code keeps working unchanged.
     let _blockSeq = 0;
     const mkBlockId = () => `b${Date.now().toString(36)}${(_blockSeq++).toString(36)}`;
-    const mkBlock   = (exercises) => ({ id: mkBlockId(), exercises: exercises || [mkEx("Pull-ups")], startedAt: null, collapsed: false });
+    const mkBlock   = (exercises, label = null) => ({ id: mkBlockId(), label, exercises: exercises || [mkEx("Pull-ups")], startedAt: null, collapsed: false });
 
     // Flatten blocks → a single exercises[] array, keeping one entry per block-exercise pair.
     // Same-named exercises across different blocks are NOT merged so the history editor
@@ -226,7 +226,7 @@
     function sessionBlocks(session) {
       if (Array.isArray(session?.trainBlocks) && session.trainBlocks.length) return session.trainBlocks;
       const exs = Array.isArray(session?.exercises) ? session.exercises : [];
-      return [{ id: mkBlockId(), exercises: exs.length ? exs : [mkEx("Pull-ups")], startedAt: null, collapsed: false }];
+      return [{ id: mkBlockId(), label: null, exercises: exs.length ? exs : [mkEx("Pull-ups")], startedAt: null, collapsed: false }];
     }
 
     function mkExFromTargets(exNames, lt) {

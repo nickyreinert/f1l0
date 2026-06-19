@@ -8,10 +8,13 @@
       const [trainBlocks, setTrainBlocks]   = useState([]);
       const [trainSupps, setTrainSupps]     = useState(mkSup());
       const [trainDone, setTrainDone]       = useState(false);
-      // Grease-the-groove cooldown between blocks (ms). Default 4h.
+      // WHY: Cooldown drives "grease the groove" pacing — configurable so user isn't locked to 4h.
       const [cooldownMs, setCooldownMs]     = useState(4 * 3600000);
       const [tmpCooldownMin, setTmpCooldownMin] = useState(240);
       const [editBlockIdx, setEditBlockIdx] = useState(null);
+      // WHY: blockPlan is the schedule source of truth; tmpBlockPlan is the editable copy in Settings.
+      const [blockPlan, setBlockPlan]       = useState(() => normalizeBlockPlan(null));
+      const [tmpBlockPlan, setTmpBlockPlan] = useState(() => normalizeBlockPlan(null));
       // Frühsport section
       const [mornExercises, setMornExercises] = useState([]);
       const [mornDone, setMornDone]           = useState(false);
@@ -46,6 +49,19 @@
         setRpgSnap(snap);
       }, []);
 
+      // WHY: Extracted to avoid duplicating 9 setters in both initApp and selectedSession effect.
+      const applySessionToState = (today) => {
+        setTrainType(today.type);
+        const blocks = sessionBlocks(today);
+        setTrainBlocks(blocks);
+        setExercises(flattenBlocks(blocks));
+        setTrainSupps(today.supps ?? mkSup());
+        setTrainDone(today.done ?? false);
+        setMornExercises(today.mornExercises || []);
+        setMornDone(today.mornDone ?? false);
+        setMornCollapsed(today.mornCollapsed ?? false);
+      };
+
       const initApp = useCallback(async () => {
           await window._syncReady;
           const cfg = await load("cfg") || {};
@@ -57,6 +73,9 @@
           setRestSecs(rs); setTmpRestSecs(rs);
           const cdMs = cfg.cooldownMs ?? 4 * 3600000;
           setCooldownMs(cdMs); setTmpCooldownMin(Math.round(cdMs / 60000));
+          // WHY: Deep copy via JSON round-trip so edits in Settings don't mutate live schedule.
+          const bp = normalizeBlockPlan(cfg.blockPlan);
+          setBlockPlan(bp); setTmpBlockPlan(JSON.parse(JSON.stringify(bp)));
           setCustomEx(cfg.customExercises || []);
           const imgs = await load("exerciseImages") || {};
           setExerciseImages(imgs);
@@ -70,17 +89,21 @@
 
           let today = all.find(s => s.date === t);
           if (!today) {
-            const nt = computeType(lastPrev?.date, lastPrev?.type);
+            const fallbackType = computeType(lastPrev?.date, lastPrev?.type);
+            const plan = normalizeBlockPlan(cfg.blockPlan);
+            const nt = resolveDayTypeWithPlan({ date: t, priorSessions: prior, plan, fallbackType });
             const lt = lastTargetsFromSessions(prior, t);
-            // Pre-fill training exercises from last same-type session
-            const lastSameType = [...prior].reverse().find(s => s.type === nt);
-            const trainNames = (lastSameType?.exercises || []).map(e => e.name);
-            const trainExs = trainNames.length ? mkExFromTargets(trainNames, lt) : [mkEx("Pull-ups", lt["Pull-ups"]?.[0] ?? lt["Klimmzüge"]?.[0] ?? 10)];
-            // Pre-fill Frühsport from last session that had mornExercises
-            const lastMorn = [...prior].reverse().find(s => s.mornExercises?.length);
-            const mornNames = (lastMorn?.mornExercises || []).map(e => e.name);
-            const mornExs = mornNames.length ? mkExFromTargets(mornNames, lt) : [mkEx("Push-ups", lt["Push-ups"]?.[0] ?? lt["Liegestütze"]?.[0] ?? 10)];
-            today = mkSession(t, nt, trainExs, mornExs);
+            const defaults = buildDefaultDayPayload({
+              date: t,
+              priorSessions: prior,
+              dayType: nt,
+              lastTargets: lt,
+              plan,
+            });
+            today = {
+              ...mkSession(t, nt, defaults.exercises, defaults.mornExercises),
+              trainBlocks: defaults.trainBlocks,
+            };
             const next = [...prior, today];
             // Only persist a freshly-created default session once the user has
             // actually interacted; persisting here would push a blank today over
@@ -90,19 +113,10 @@
             setSessions(all);
           }
 
-          setTrainType(today.type);
-          const blocks = sessionBlocks(today);
-          setTrainBlocks(blocks);
-          setExercises(flattenBlocks(blocks));
-          setTrainSupps(today.supps ?? mkSup());
-          setTrainDone(today.done ?? false);
-          setMornExercises(today.mornExercises || []);
-          setMornDone(today.mornDone ?? false);
-          setMornCollapsed(today.mornCollapsed ?? false);
-
+          applySessionToState(today);
           await refreshSnap();
           setReady(true);
-      }, []);
+      }, []);  // WHY: applySessionToState is stable (only closes over state setters)
 
       useEffect(() => {
         initApp();
@@ -231,17 +245,9 @@
         return sessions.find(s => s.date === headerDate) || mkSession(headerDate, "A", [], []);
       }, [sessions, headerDate]);
 
+      // WHY: Sync all UI state when user navigates to a different day in the history.
       useEffect(() => {
-        const visible = migrateSession(selectedSession);
-        setTrainType(visible.type);
-        const blocks = sessionBlocks(visible);
-        setTrainBlocks(blocks);
-        setExercises(flattenBlocks(blocks));
-        setTrainSupps(visible.supps ?? mkSup());
-        setTrainDone(visible.done ?? false);
-        setMornExercises(visible.mornExercises || []);
-        setMornDone(visible.mornDone ?? false);
-        setMornCollapsed(visible.mornCollapsed ?? false);
+        applySessionToState(migrateSession(selectedSession));
       }, [selectedSession]);
 
       const fireGamificationEvents = (events, newLevel) => {
@@ -362,23 +368,14 @@
       };
 
       const saveHistoryEntry = async (updated) => {
-        // The history editor edits the flat exercises[] directly; discard any stale
-        // block structure so the edited flat list becomes the single source again.
+        // WHY: Discard stale blocks so the edited flat list becomes the canonical source again.
         const { trainBlocks: _drop, ...rest } = updated;
         const migrated = { ...migrateSession(rest), updatedAt: Date.now() };
         const next = [...sessions.filter(s => s.date !== migrated.date), migrated]
           .sort((a,b) => a.date.localeCompare(b.date));
         setSessions(next);
         await save("sessions", next);
-        if (migrated.date === headerDate) {
-          const blocks = sessionBlocks(migrated);
-          setTrainBlocks(blocks);
-          setExercises(flattenBlocks(blocks));
-          setMornExercises(migrated.mornExercises || []);
-          setTrainSupps(migrated.supps ?? mkSup());
-          setTrainDone(migrated.done ?? false);
-          setMornDone(migrated.mornDone ?? false);
-        }
+        if (migrated.date === headerDate) applySessionToState(migrated);
         setEditEntry(null);
       };
 
