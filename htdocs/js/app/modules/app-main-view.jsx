@@ -1,44 +1,60 @@
-          <div style={{ padding:"20px 20px" }}>
-            {(() => {
-              const daysSince = (lastTrainDate && lastTrainDate !== todayStr())
-                ? Math.floor((new Date(todayStr()+"T12:00:00") - new Date(lastTrainDate+"T12:00:00")) / 86400000)
-                : null;
-              const isRest = trainType === "B";
-              const urgency = !isRest ? 0 : (daysSince ?? 0);
-              const urgencyColor = urgency <= 1 ? typeColor : urgency === 2 ? "#e8a000" : urgency === 3 ? "#e85000" : "#ff2222";
-              const urgencyTag = isRest && urgency >= 2
-                ? urgency === 2 ? "TRAIN!" : urgency === 3 ? "TRAIN NOW!" : urgency === 4 ? "YOU MUST TRAIN!" : "LAZY BASTARD!"
-                : null;
-              return <>
-                <div style={{ marginTop:4, lineHeight:0.88, position:"relative", paddingRight:64 }}>
-                  <button
-                    onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("settings"); setMenuOpen(true); }}
-                    title="Open settings"
-                    style={{
-                      position:"absolute", top:6, right:0,
-                      width:50, height:50,
-                      background:"transparent", border:`1px solid #333`, color:"#bbb",
-                      cursor:"pointer", borderRadius:6, fontSize:28, lineHeight:1,
-                      display:"flex", alignItems:"center", justifyContent:"center",
-                    }}
-                  >
-                    ⚙
-                  </button>
-                  <div style={{ fontSize:"clamp(88px, 16vw, 140px)", fontWeight:900, letterSpacing:-3, color:urgencyColor }}>{isRest ? "REST" : "TRAIN"}</div>
-                  {urgencyTag && <div style={{ fontSize:"clamp(28px, 4vw, 42px)", fontWeight:900, letterSpacing:2, color:urgencyColor, marginTop:4 }}>{urgencyTag}</div>}
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, padding:"14px 20px 0" }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              {view === "protocol" && (() => {
+                const daysSince = (lastTrainDate && lastTrainDate !== todayStr())
+                  ? Math.floor((new Date(todayStr()+"T12:00:00") - new Date(lastTrainDate+"T12:00:00")) / 86400000)
+                  : null;
+                const isRest = trainType === "B";
+                const urgency = !isRest ? 0 : (daysSince ?? 0);
+                const urgencyColor = urgency <= 1 ? typeColor : urgency === 2 ? "#e8a000" : urgency === 3 ? "#e85000" : "#ff2222";
+                const urgencyTag = isRest && urgency >= 2
+                  ? urgency === 2 ? "TRAIN!" : urgency === 3 ? "TRAIN NOW!" : urgency === 4 ? "YOU MUST TRAIN!" : "LAZY BASTARD!"
+                  : null;
+                return <>
+                  <div style={{ lineHeight:0.88, position:"relative" }}>
+                    <div style={{ fontSize:"clamp(88px, 16vw, 140px)", fontWeight:900, letterSpacing:-3, color:urgencyColor }}>{isRest ? "REST" : "TRAIN"}</div>
+                    {urgencyTag && <div style={{ fontSize:"clamp(28px, 4vw, 42px)", fontWeight:900, letterSpacing:2, color:urgencyColor, marginTop:4 }}>{urgencyTag}</div>}
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:6 }}>
                     <button onClick={() => setHeaderDayOffset(o => o - 1)} title="Previous day" style={{ background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, padding:"4px 10px", cursor:"pointer", fontSize:20, lineHeight:1 }}>‹</button>
                     <button onClick={openHeaderDayEditor} title="Edit day" style={{ ...lbl9, background:"none", border:"none", cursor:"pointer", color:"#aaa" }}>{fmtDate(headerDate).toUpperCase()}</button>
                     <button onClick={() => setHeaderDayOffset(0)} title="Go to today" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:13, letterSpacing:1.5, lineHeight:1, ...cond }}>TODAY</button>
                     <button onClick={() => setHeaderDayOffset(o => Math.min(0, o + 1))} title="Next day" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:20, lineHeight:1 }}>›</button>
                   </div>
-                </div>
-              </>;
-            })()}
+                </>;
+              })()}
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+              {(() => {
+                const svg = (children) => (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
+                );
+                const ICONS = {
+                  protocol: svg(<><path d="M6.5 6.5v11M3.5 9v6M17.5 6.5v11M20.5 9v6M6.5 12h11" /></>),
+                  stats: svg(<><path d="M3 21h18M6 21V11M12 21V5M18 21v-7" /></>),
+                  settings: svg(<><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.1 5.1l2.1 2.1M16.8 16.8l2.1 2.1M18.9 5.1l-2.1 2.1M7.2 16.8l-2.1 2.1" /></>),
+                  data: svg(<><path d="M5 3h11l3 3v15H5z" /><path d="M8 3v5h7V3M8 21v-7h8v7" /></>),
+                };
+                const navBtn = (key, onClick, title) => (
+                  <button key={key} onClick={onClick} title={title} style={{
+                    width:46, height:46, background: view===key ? ACC : "transparent",
+                    border:`1px solid ${view===key ? ACC : "#333"}`, color: view===key ? BG : "#999",
+                    cursor:"pointer", borderRadius:6, lineHeight:0,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                  }}>{ICONS[key]}</button>
+                );
+                return <>
+                  {navBtn("protocol", () => setView("protocol"), "Protocol")}
+                  {navBtn("stats", () => setView("stats"), "Stats")}
+                  {navBtn("settings", () => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setView("settings"); }, "Settings")}
+                  {navBtn("data", () => setView("data"), "Data")}
+                </>;
+              })()}
+            </div>
           </div>
-          <div style={{ height:1, background:BDR }} />
+
+          {view === "protocol" && (<>
+          <div style={{ height:1, background:BDR, marginTop:20 }} />
 
           {mornExercises.length > 0 && (
             <>
@@ -164,6 +180,13 @@
               })}
             </div>
           )}
+          </>)}
+
+          {view !== "protocol" && (
+            <div style={{ padding:"20px 20px 40px" }}>
+              {renderViewContent()}
+            </div>
+          )}
 
           <ExerciseModal open={modalOpen} onClose={() => setModalOpen(false)} onSelect={selectExercise} recentlyUsed={recentEx} customExercises={customExercises} onAddCustom={addCustomExercise} exerciseImages={exerciseImages} onImageUpdate={updateExerciseImage} />
           {editBlockIdx !== null && trainBlocks[editBlockIdx]?.startedAt != null && (
@@ -173,7 +196,6 @@
               onClose={() => setEditBlockIdx(null)}
             />
           )}
-          {menuOpen && MenuModal()}
 
           {/* ── History entry edit modal ── */}
           {editEntry && (

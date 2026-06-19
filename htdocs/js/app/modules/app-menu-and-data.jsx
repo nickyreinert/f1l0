@@ -1,23 +1,17 @@
-      // ─── Settings + Stats modal ───────────────────────────────────────────────
-      const [menuOpen, setMenuOpen] = useState(false);
-      useEffect(() => {
-        document.body.style.overflow = menuOpen ? 'hidden' : '';
-        return () => { document.body.style.overflow = ''; };
-      }, [menuOpen]);
-      const [menuTab, setMenuTab]   = useState("stats");
+      // ─── Tabbed views (protocol / stats / settings / data) ──────────────────
+      const [view, setView] = useState("protocol");
       const [copyOk, setCopyOk]     = useState(false);
       const [importJson, setImportJson] = useState("");
       const [importErr, setImportErr]   = useState("");
       const [cloudState, setCloudState] = useState({ ...window._authState });
-      const modalOrderRef = useRef({ exercise: 0, startTime: 0, menu: 0, history: 0 });
+      const modalOrderRef = useRef({ exercise: 0, startTime: 0, history: 0 });
       const modalSeqRef = useRef(0);
-      const prevOpenRef = useRef({ exercise: false, startTime: false, menu: false, history: false });
+      const prevOpenRef = useRef({ exercise: false, startTime: false, history: false });
 
       useEffect(() => {
         const currentOpen = {
           exercise: modalOpen,
           startTime: editBlockIdx !== null,
-          menu: menuOpen,
           history: !!editEntry,
         };
         Object.keys(currentOpen).forEach((key) => {
@@ -26,7 +20,7 @@
           }
         });
         prevOpenRef.current = currentOpen;
-      }, [modalOpen, editBlockIdx, menuOpen, editEntry]);
+      }, [modalOpen, editBlockIdx, editEntry]);
 
       useEffect(() => {
         const handleEscape = (e) => {
@@ -34,7 +28,6 @@
           const openModals = [
             { key: "exercise", open: modalOpen, close: () => setModalOpen(false) },
             { key: "startTime", open: editBlockIdx !== null, close: () => setEditBlockIdx(null) },
-            { key: "menu", open: menuOpen, close: () => setMenuOpen(false) },
             { key: "history", open: !!editEntry, close: () => setEditEntry(null) },
           ].filter((m) => m.open);
           if (!openModals.length) return;
@@ -46,7 +39,7 @@
         };
         window.addEventListener("keydown", handleEscape);
         return () => window.removeEventListener("keydown", handleEscape);
-      }, [modalOpen, editBlockIdx, menuOpen, editEntry]);
+      }, [modalOpen, editBlockIdx, editEntry]);
 
       useEffect(() => {
         const h = (e) => setCloudState({ ...e.detail });
@@ -62,7 +55,7 @@
         return () => window.removeEventListener("beforeunload", guard);
       }, []);
 
-      const MenuModal = () => {
+      const renderViewContent = () => {
         const streak    = calcStreak(sessions);
         const topEx     = calcTopExercises(sessions);
         const weekVol   = calcWeeklyVolume(sessions);
@@ -90,9 +83,6 @@
           }
         };
 
-        const TAB = (id, label) => (
-          <button key={id} onClick={() => setMenuTab(id)} style={{ flex:1, minHeight:68, padding:"18px 0", background:"transparent", border:"none", borderBottom:`3px solid ${menuTab===id ? ACC : "transparent"}`, color: menuTab===id ? "#f0f0ed" : "#aaa", fontSize:18, letterSpacing:2, cursor:"pointer", ...cond, fontWeight:700 }}>{label}</button>
-        );
         const KPI = ({ label, val, unit, large }) => (
           <div style={{ background:"#0a0a0a", border:`1px solid ${BDR}`, borderRadius:6, padding:"14px 12px" }}>
             <div style={{ ...lbl9, marginBottom:6 }}>{label}</div>
@@ -102,27 +92,8 @@
         );
 
         return (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"stretch", zIndex:1500 }} onClick={() => setMenuOpen(false)}>
-            <div style={{ background:"#111", width:"100%", borderRadius:0, height:"100%", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
-              <div style={{ position:"relative", display:"flex", borderBottom:`1px solid ${BDR}`, flexShrink:0, paddingRight:60 }}>
-                {TAB("stats","STATS")}{TAB("exercises","EXERCISES")}{TAB("settings","SETTINGS")}{TAB("data","DATA")}
-                <button
-                  onClick={() => setMenuOpen(false)}
-                  title="Close settings"
-                  style={{
-                    position:"absolute", top:8, right:8,
-                    width:44, height:44,
-                    background:"transparent", border:`1px solid #333`, borderRadius:6,
-                    color:"#aaa", fontSize:28, lineHeight:1, cursor:"pointer",
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-              <div style={{ overflowY:"auto", padding:"20px 20px 40px", flex:1, minHeight:0 }}>
-
-                {menuTab === "stats" && (sessions.length === 0
+          <>
+                {view === "stats" && (sessions.length === 0
                   ? <div style={{ padding:"60px 0", textAlign:"center" }}><div style={{ ...mono, fontSize:12, color:"#aaa", letterSpacing:3 }}>NO DATA YET</div></div>
                   : <>
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:8 }}>
@@ -171,45 +142,42 @@
                           ))}
                         </div>
                       </>}
-                    </>
-                )}
-
-                {menuTab === "exercises" && (topEx.length === 0
-                  ? <div style={{ padding:"60px 0", textAlign:"center" }}><div style={{ ...mono, fontSize:12, color:"#aaa", letterSpacing:3 }}>NO DATA YET</div></div>
-                  : <>
-                      <div style={{ ...lbl9, marginBottom:16 }}>TOTAL VOLUME BY EXERCISE</div>
-                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:10 }}>
-                        {topEx.map(([name, { sets, reps }]) => {
-                          const prog = calcExerciseProgression(sessions, name);
-                          const maxR = Math.max(...prog.map(p => p.reps), 1);
-                          return (
-                            <div key={name} style={{ background:"#0a0a0a", border:`1px solid ${BDR}`, borderRadius:6, padding:16 }}>
-                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
-                                <span style={{ fontSize:16, fontWeight:700, color:"#ddd" }}>{name}</span>
-                                <span style={{ ...mono, fontSize:12, color:"#bbb" }}>{reps.toLocaleString("en")} reps · {sets} sets</span>
-                              </div>
-                              <div style={{ height:4, background:"#1a1a1a", borderRadius:2, marginBottom: prog.length > 1 ? 14 : 0 }}>
-                                <div style={{ height:4, background:ACC, opacity:0.5, width:`${(reps / topEx[0][1].reps) * 100}%`, borderRadius:2 }} />
-                              </div>
-                              {prog.length > 1 && <>
-                                <div style={{ ...lbl9, marginBottom:6 }}>PROGRESSION</div>
-                                <div style={{ display:"flex", gap:3, alignItems:"flex-end", height:40 }}>
-                                  {prog.map((p,i) => (
-                                    <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
-                                      <div style={{ width:"100%", background: i===prog.length-1 ? ACC : "#2a4a00", borderRadius:"2px 2px 0 0", height:`${Math.max(3,(p.reps/maxR)*30)}px`, opacity: i===prog.length-1 ? 0.85 : 0.5 }} />
-                                      <div style={{ ...mono, fontSize:7, color:"#888" }}>{p.reps}</div>
-                                    </div>
-                                  ))}
+                      {topEx.length > 0 && <>
+                        <div style={{ ...lbl9, marginBottom:16, marginTop:28 }}>TOTAL VOLUME BY EXERCISE</div>
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:10 }}>
+                          {topEx.map(([name, { sets, reps }]) => {
+                            const prog = calcExerciseProgression(sessions, name);
+                            const maxR = Math.max(...prog.map(p => p.reps), 1);
+                            return (
+                              <div key={name} style={{ background:"#0a0a0a", border:`1px solid ${BDR}`, borderRadius:6, padding:16 }}>
+                                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
+                                  <span style={{ fontSize:16, fontWeight:700, color:"#ddd" }}>{name}</span>
+                                  <span style={{ ...mono, fontSize:12, color:"#bbb" }}>{reps.toLocaleString("en")} reps · {sets} sets</span>
                                 </div>
-                              </>}
-                            </div>
-                          );
-                        })}
-                      </div>
+                                <div style={{ height:4, background:"#1a1a1a", borderRadius:2, marginBottom: prog.length > 1 ? 14 : 0 }}>
+                                  <div style={{ height:4, background:ACC, opacity:0.5, width:`${(reps / topEx[0][1].reps) * 100}%`, borderRadius:2 }} />
+                                </div>
+                                {prog.length > 1 && <>
+                                  <div style={{ ...lbl9, marginBottom:6 }}>PROGRESSION</div>
+                                  <div style={{ display:"flex", gap:3, alignItems:"flex-end", height:40 }}>
+                                    {prog.map((p,i) => (
+                                      <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                                        <div style={{ width:"100%", background: i===prog.length-1 ? ACC : "#2a4a00", borderRadius:"2px 2px 0 0", height:`${Math.max(3,(p.reps/maxR)*30)}px`, opacity: i===prog.length-1 ? 0.85 : 0.5 }} />
+                                        <div style={{ ...mono, fontSize:7, color:"#888" }}>{p.reps}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>}
                     </>
                 )}
 
-                {menuTab === "settings" && <>
+
+                {view === "settings" && <>
                   <div style={{ background:"#0c0f14", border:`1px solid #1d2b34`, borderRadius:8, padding:"14px 14px 10px", marginBottom:14 }}>
                     <div style={{ ...lbl9, marginBottom:6, fontSize:14, color:"#9ed5ff" }}>BLOCK SETUP</div>
                     <div style={{ ...mono, fontSize:14, color:"#6f8ea3", marginBottom:12 }}>Define your blocks and their pause cadence.</div>
@@ -322,11 +290,11 @@
                     const bp = normalizeBlockPlan(tmpBlockPlan);
                     setRestSecs(rs); setSupplements(tmpSupplements); setCooldownMs(cdMs); setBlockPlan(bp);
                     load("cfg").then(cfg => save("cfg", { ...(cfg||{}), restSecs: rs, cooldownMs: cdMs, supplements: tmpSupplements, blockPlan: bp }));
-                    setMenuOpen(false);
+                    setView("protocol");
                   }} style={{ background:ACC, color:BG, border:"none", padding:18, fontSize:24, fontWeight:900, letterSpacing:3, width:"100%", borderRadius:4, cursor:"pointer", ...cond }}>SAVE</button>
                 </>}
 
-                {menuTab === "data" && <>
+                {view === "data" && <>
                   {window._fbAuth && <>
                     <div style={{ ...lbl9, marginBottom:10 }}>CLOUD BACKUP</div>
                     {cloudState.user ? (
@@ -360,9 +328,7 @@
                     IMPORT DATA
                   </button>
                 </>}
-              </div>
-            </div>
-          </div>
+          </>
         );
       };
 
