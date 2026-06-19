@@ -54,26 +54,26 @@
             {/* ── Header: title + search ── */}
             <div style={{ padding:"16px 20px 12px", borderBottom:`1px solid ${BDR}`, flexShrink:0 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-                <div style={{ fontSize:22, fontWeight:900, letterSpacing:2, ...cond }}>SELECT EXERCISE</div>
+                <div style={{ fontSize:30, fontWeight:900, letterSpacing:2, ...cond }}>SELECT EXERCISE</div>
                 <button onClick={onClose} style={{ background:"none", border:"none", fontSize:30, cursor:"pointer", color:"#aaa", lineHeight:1, padding:"0 4px" }}>×</button>
               </div>
               <input type="search" value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Search…"
-                style={{ width:"100%", padding:"10px 14px", background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", borderRadius:4, outline:"none", fontSize:15, boxSizing:"border-box" }} />
+                style={{ width:"100%", padding:"12px 16px", background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", borderRadius:4, outline:"none", fontSize:20, boxSizing:"border-box" }} />
             </div>
 
             {/* ── Body: sidebar + card grid ── */}
             <div style={{ display:"flex", flex:1, minHeight:0, overflow:"hidden" }}>
 
               {/* Left: categories */}
-              <div style={{ width:76, flexShrink:0, overflowY:"auto", borderRight:`1px solid ${BDR}`, padding:"6px 4px", display:"flex", flexDirection:"column", gap:3 }}>
+              <div style={{ width:98, flexShrink:0, overflowY:"auto", borderRight:`1px solid ${BDR}`, padding:"8px 5px", display:"flex", flexDirection:"column", gap:6 }}>
                 {Object.keys(allCats).map(cat => (
                   <button key={cat} onClick={() => { setFilter(cat); setSearch(""); }}
-                    style={{ width:"100%", padding:"10px 2px", background: activeFilter===cat ? ACC : "transparent",
+                    style={{ width:"100%", padding:"12px 3px", background: activeFilter===cat ? ACC : "transparent",
                       color: activeFilter===cat ? BG : "#777", border:"none", borderRadius:4,
-                      cursor:"pointer", fontSize:11, letterSpacing:1, fontWeight:700, ...cond,
+                      cursor:"pointer", fontSize:14, letterSpacing:1, fontWeight:700, ...cond,
                       textAlign:"center", lineHeight:1.4 }}>
-                    <div style={{ fontSize:17, marginBottom:2 }}>{catIcons[cat] || "·"}</div>
+                    <div style={{ fontSize:24, marginBottom:2 }}>{catIcons[cat] || "·"}</div>
                     {cat}
                   </button>
                 ))}
@@ -82,10 +82,10 @@
               {/* Right: exercise cards */}
               <div style={{ flex:1, overflowY:"auto", padding:10 }}>
                 {displayed.length === 0
-                  ? <div style={{ padding:"60px 0", textAlign:"center", color:"#444", ...mono, fontSize:12, letterSpacing:3 }}>
+                  ? <div style={{ padding:"60px 0", textAlign:"center", color:"#444", ...mono, fontSize:16, letterSpacing:3 }}>
                       {search.trim() ? "NO RESULTS" : "NO EXERCISES"}
                     </div>
-                  : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(clamp(140px, 18%, 200px), 1fr))", gap:8 }}>
+                  : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(clamp(180px, 24%, 280px), 1fr))", gap:10 }}>
                       {displayed.map(ex => (
                         <button key={ex} onClick={() => { onSelect(ex); onClose(); }}
                           style={{ position:"relative", background:CARD, border:`1px solid ${BDR}`, borderRadius:6,
@@ -96,20 +96,20 @@
                             justifyContent:"center", overflow:"hidden", flexShrink:0 }}>
                             {exerciseImages?.[ex]
                               ? <img src={exerciseImages[ex]} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-                              : <span style={{ fontSize:32, opacity:0.12 }}>◉</span>}
+                              : <span style={{ fontSize:42, opacity:0.12 }}>◉</span>}
                           </div>
                           {/* Exercise name */}
-                          <div style={{ padding:"8px 6px", fontSize:15, fontWeight:700, color:"#e0e0e0",
+                          <div style={{ padding:"12px 8px", fontSize:22, fontWeight:700, color:"#e0e0e0",
                             ...cond, letterSpacing:0.5, lineHeight:1.2, flex:1, display:"flex",
                             alignItems:"center", justifyContent:"center" }}>
                             {ex}
                           </div>
                           {/* Image upload button */}
                           <div onClick={e => handleImgBtn(ex, e)}
-                            style={{ position:"absolute", top:4, right:4, width:22, height:22,
+                            style={{ position:"absolute", top:6, right:6, width:30, height:30,
                               background:"rgba(0,0,0,0.72)", borderRadius:3, display:"flex",
                               alignItems:"center", justifyContent:"center", cursor:"pointer",
-                              fontSize:11, color: exerciseImages?.[ex] ? "#aaa" : "#555",
+                              fontSize:14, color: exerciseImages?.[ex] ? "#aaa" : "#555",
                               border:`1px solid ${exerciseImages?.[ex] ? "#555" : "#333"}` }}
                             title="Upload image">
                             📷
@@ -127,15 +127,15 @@
                 <input value={customName} onChange={e => setCustomName(e.target.value)}
                   onKeyDown={e => e.key==="Enter" && handleAdd()}
                   placeholder="Add new exercise…"
-                  style={{ flex:1, padding:"10px 12px", background:"#1a1a1a", border:`1px solid ${BDR}`,
-                    color:"#ccc", borderRadius:3, outline:"none", fontSize:14, boxSizing:"border-box" }} />
+                  style={{ flex:1, padding:"12px 14px", background:"#1a1a1a", border:`1px solid ${BDR}`,
+                    color:"#ccc", borderRadius:3, outline:"none", fontSize:20, boxSizing:"border-box" }} />
                 <button onClick={handleAdd}
-                  style={{ padding:"10px 16px", background: customName.trim() ? ACC : "#1a1a1a",
+                  style={{ padding:"12px 18px", background: customName.trim() ? ACC : "#1a1a1a",
                     color: customName.trim() ? BG : "#444",
                     border:`1px solid ${customName.trim() ? ACC : BDR}`, borderRadius:3,
-                    cursor: customName.trim() ? "pointer" : "default", fontWeight:700, fontSize:18 }}>✓</button>
+                    cursor: customName.trim() ? "pointer" : "default", fontWeight:700, fontSize:24 }}>✓</button>
               </div>
-              <div style={{ ...mono, fontSize:11, color:"#444" }}>New exercises will appear permanently under "Custom"</div>
+              <div style={{ ...mono, fontSize:14, color:"#444" }}>New exercises will appear permanently under "Custom"</div>
             </div>
 
             <input ref={imgInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleImageFile} />
@@ -148,18 +148,18 @@
     function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onComplete, onRepAdded, onToggleDone, showComplete }) {
       const iconBtn = (icon, label, onClick, opts = {}) => (
         <button onClick={onClick} title={label} style={{
-          flex:1, height:44, background:"transparent",
+          flex:1, height:56, background:"transparent",
           border:`1px solid #2a2a2a`,
           color:"#888",
           borderRadius:4, cursor:"pointer",
-          fontSize: opts.small ? 13 : 18, display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1, letterSpacing: opts.small ? 1 : 0,
+          fontSize: opts.small ? 18 : 24, display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1, letterSpacing: opts.small ? 1 : 0,
         }}>
           {icon}
         </button>
       );
 
       return (
-        <div style={{ background:CARD, border:`1px solid ${BDR}`, borderRadius:6, marginBottom:12, padding:"16px 20px 20px" }}>
+        <div style={{ background:CARD, border:`1px solid ${BDR}`, borderRadius:6, marginBottom:12, padding:"18px 22px 22px" }}>
           {exercises.map((ex, ei) => (
             <ExRow key={ei} ex={ex} disabled={done}
               onSetRep={(si,v) => onSetRep(ei,si,v)}
@@ -194,33 +194,33 @@
       return (
         <div style={{ background:CARD, border:`1px solid ${checked ? "#2a4a00" : BDR}`, borderRadius:6, marginBottom:12, overflow:"hidden" }}>
           {/* Header */}
-          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 14px", borderBottom: collapsed ? "none" : `1px solid ${BDR}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 16px", borderBottom: collapsed ? "none" : `1px solid ${BDR}` }}>
             <button onClick={checked ? onUncheck : onCheck} title={checked ? "Done – tap to reset" : "Mark block as done"}
-              style={{ width:34, height:34, flexShrink:0, borderRadius:3, border:`2px solid ${checked ? ACC : "#666"}`, background: checked ? ACC : "transparent", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
-              {checked && <span style={{ color:BG, fontSize:18, fontWeight:700, lineHeight:1 }}>✓</span>}
+              style={{ width:44, height:44, flexShrink:0, borderRadius:3, border:`2px solid ${checked ? ACC : "#666"}`, background: checked ? ACC : "transparent", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+              {checked && <span style={{ color:BG, fontSize:22, fontWeight:700, lineHeight:1 }}>✓</span>}
             </button>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ ...mono, fontSize:11, color:"#888", letterSpacing:2 }}>{(block.label || `BLOCK ${index + 1}`).toUpperCase()}</div>
+              <div style={{ ...mono, fontSize:14, color:"#888", letterSpacing:2 }}>{(block.label || `BLOCK ${index + 1}`).toUpperCase()}</div>
               {checked && (
                 <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:2 }}>
-                  <span style={{ ...mono, fontSize:14, fontWeight:700, color:"#e8a000", letterSpacing:1 }}>
+                  <span style={{ ...mono, fontSize:18, fontWeight:700, color:"#e8a000", letterSpacing:1 }}>
                     {`⏱ ${new Date(block.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
                   </span>
-                  <button onClick={onEditStart} title="Edit start time" style={{ background:"none", border:"none", color:"#777", cursor:"pointer", fontSize:13, padding:0, lineHeight:1 }}>✎</button>
+                  <button onClick={onEditStart} title="Edit start time" style={{ background:"none", border:"none", color:"#777", cursor:"pointer", fontSize:18, padding:0, lineHeight:1 }}>✎</button>
                 </div>
               )}
             </div>
-            <button onClick={onToggleCollapse} title={collapsed ? "Expand" : "Collapse"} style={{ width:34, height:34, flexShrink:0, background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:14, lineHeight:1 }}>
+            <button onClick={onToggleCollapse} title={collapsed ? "Expand" : "Collapse"} style={{ width:44, height:44, flexShrink:0, background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1 }}>
               {collapsed ? "▾" : "▴"}
             </button>
             {canDeleteBlock && (
-              <button onClick={() => setConfirmDel(true)} title="Delete block" style={{ width:34, height:34, flexShrink:0, background:CARD, border:`1px solid #444`, color:"#ff6b6b", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1 }}>×</button>
+              <button onClick={() => setConfirmDel(true)} title="Delete block" style={{ width:44, height:44, flexShrink:0, background:CARD, border:`1px solid #444`, color:"#ff6b6b", borderRadius:3, cursor:"pointer", fontSize:24, lineHeight:1 }}>×</button>
             )}
           </div>
 
           {/* Body */}
           {!collapsed && (
-            <div style={{ padding:"14px 18px 18px" }}>
+            <div style={{ padding:"16px 20px 20px" }}>
               {block.exercises.map((ex, ei) => (
                 <ExRow key={ei} ex={ex} disabled={checked}
                   onSetRep={(si,v) => onSetRep(ei,si,v)}
@@ -234,7 +234,7 @@
                 />
               ))}
               {!checked && (
-                <button onClick={onAddExercise} style={{ width:"100%", height:44, background:"transparent", border:`1px solid #2a2a2a`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}>＋</button>
+                <button onClick={onAddExercise} style={{ width:"100%", height:56, background:"transparent", border:`1px solid #2a2a2a`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:24, display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}>＋</button>
               )}
             </div>
           )}

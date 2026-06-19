@@ -91,7 +91,7 @@
         };
 
         const TAB = (id, label) => (
-          <button key={id} onClick={() => setMenuTab(id)} style={{ flex:1, padding:"12px 0", background:"transparent", border:"none", borderBottom:`2px solid ${menuTab===id ? ACC : "transparent"}`, color: menuTab===id ? "#f0f0ed" : "#aaa", fontSize:11, letterSpacing:2, cursor:"pointer", ...cond, fontWeight:700 }}>{label}</button>
+          <button key={id} onClick={() => setMenuTab(id)} style={{ flex:1, minHeight:68, padding:"18px 0", background:"transparent", border:"none", borderBottom:`3px solid ${menuTab===id ? ACC : "transparent"}`, color: menuTab===id ? "#f0f0ed" : "#aaa", fontSize:18, letterSpacing:2, cursor:"pointer", ...cond, fontWeight:700 }}>{label}</button>
         );
         const KPI = ({ label, val, unit, large }) => (
           <div style={{ background:"#0a0a0a", border:`1px solid ${BDR}`, borderRadius:6, padding:"14px 12px" }}>
@@ -197,29 +197,29 @@
                 )}
 
                 {menuTab === "settings" && <>
-                  <div style={{ ...lbl9, marginBottom:14 }}>BLOCKS</div>
+                  <div style={{ ...lbl9, marginBottom:14, fontSize:14 }}>BLOCKS</div>
                   <BlockPlanEditor plan={tmpBlockPlan} onChange={setTmpBlockPlan} />
                   <div style={{ height:1, background:BDR, margin:"24px 0" }} />
 
-                  <div style={{ ...lbl9, marginBottom:14 }}>REST TIMER AFTER SET</div>
+                  <div style={{ ...lbl9, marginBottom:14, fontSize:14 }}>REST TIMER AFTER SET</div>
                   <div style={{ display:"flex", borderRadius:4, overflow:"hidden", border:`1px solid ${BDR}`, marginBottom:8 }}>
-                    <button onClick={() => setTmpRestSecs(v => Math.max(10, v-10))} style={{ width:72, height:72, background:CARD, border:"none", color:"#bbb", fontSize:30, cursor:"pointer", ...mono }}>−</button>
-                    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a1a", ...mono, fontSize:34, fontWeight:700 }}>{tmpRestSecs}s</div>
-                    <button onClick={() => setTmpRestSecs(v => v+10)} style={{ width:72, height:72, background:CARD, border:"none", color:"#bbb", fontSize:30, cursor:"pointer", ...mono }}>+</button>
+                    <button onClick={() => setTmpRestSecs(v => Math.max(10, v-10))} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>−</button>
+                    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a1a", ...mono, fontSize:42, fontWeight:700 }}>{tmpRestSecs}s</div>
+                    <button onClick={() => setTmpRestSecs(v => v+10)} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>+</button>
                   </div>
-                  <div style={{ ...mono, fontSize:13, color:"#aaa", marginBottom:28 }}>Countdown starts after each set</div>
+                  <div style={{ ...mono, fontSize:17, color:"#aaa", marginBottom:28 }}>Countdown starts after each set</div>
 
-                  <div style={{ ...lbl9, marginBottom:14 }}>COOLDOWN BETWEEN BLOCKS</div>
+                  <div style={{ ...lbl9, marginBottom:14, fontSize:14 }}>COOLDOWN BETWEEN BLOCKS</div>
                   <div style={{ display:"flex", borderRadius:4, overflow:"hidden", border:`1px solid ${BDR}`, marginBottom:8 }}>
-                    <button onClick={() => setTmpCooldownMin(v => Math.max(15, v-15))} style={{ width:72, height:72, background:CARD, border:"none", color:"#bbb", fontSize:30, cursor:"pointer", ...mono }}>−</button>
-                    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a1a", ...mono, fontSize:30, fontWeight:700 }}>
+                    <button onClick={() => setTmpCooldownMin(v => Math.max(15, v-15))} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>−</button>
+                    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a1a", ...mono, fontSize:38, fontWeight:700 }}>
                       {Math.floor(tmpCooldownMin/60)}h {String(tmpCooldownMin%60).padStart(2,"0")}m
                     </div>
-                    <button onClick={() => setTmpCooldownMin(v => v+15)} style={{ width:72, height:72, background:CARD, border:"none", color:"#bbb", fontSize:30, cursor:"pointer", ...mono }}>+</button>
+                    <button onClick={() => setTmpCooldownMin(v => v+15)} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>+</button>
                   </div>
-                  <div style={{ ...mono, fontSize:13, color:"#aaa", marginBottom:28 }}>Break between training blocks (Grease the Groove)</div>
+                  <div style={{ ...mono, fontSize:17, color:"#aaa", marginBottom:28 }}>Break between training blocks (Grease the Groove)</div>
 
-                  <div style={{ ...lbl9, marginBottom:14, marginTop:20 }}>SUPPLEMENTS</div>
+                  <div style={{ ...lbl9, marginBottom:14, marginTop:20, fontSize:14 }}>SUPPLEMENTS</div>
                   <div style={{ marginBottom:20 }}>
                     {tmpSupplements.map((supp, si) => (
                       <div
@@ -268,31 +268,31 @@
                         {/* Name */}
                         <input type="text" placeholder="Name" value={supp.name}
                           onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],name:e.target.value}; setTmpSupplements(ns); }}
-                          style={{ flex:2, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"6px 8px", borderRadius:3, outline:"none", fontSize:12, boxSizing:"border-box" }} />
+                          style={{ flex:2, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:16, boxSizing:"border-box" }} />
                         {/* Volume/Amount */}
                         <input type="text" placeholder="Amount" value={supp.amount || ""}
                           onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],amount:e.target.value}; setTmpSupplements(ns); }}
-                          style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"6px 8px", borderRadius:3, outline:"none", fontSize:12, boxSizing:"border-box" }} />
+                          style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:16, boxSizing:"border-box" }} />
                         {/* Time */}
                         <input type="text" placeholder="Time" value={supp.time || ""}
                           onChange={e => { const ns=[...tmpSupplements]; ns[si]={...ns[si],time:e.target.value}; setTmpSupplements(ns); }}
-                          style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"6px 8px", borderRadius:3, outline:"none", fontSize:12, boxSizing:"border-box" }} />
+                          style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:16, boxSizing:"border-box" }} />
                         {/* Delete */}
                         {suppDeleteConfirm === si ? (
                           <div style={{ display:"flex", gap:4, flexShrink:0 }}>
                             <button onClick={() => { setTmpSupplements(tmpSupplements.filter((_,j)=>j!==si)); setSuppDeleteConfirm(null); }}
-                              style={{ height:30, padding:"0 8px", background:"#661111", border:"none", color:"#ffaaaa", borderRadius:3, cursor:"pointer", fontSize:11, letterSpacing:1, ...cond, fontWeight:700 }}>YES</button>
+                              style={{ height:34, padding:"0 10px", background:"#661111", border:"none", color:"#ffaaaa", borderRadius:3, cursor:"pointer", fontSize:14, letterSpacing:1, ...cond, fontWeight:700 }}>YES</button>
                             <button onClick={() => setSuppDeleteConfirm(null)}
-                              style={{ height:30, padding:"0 8px", background:"transparent", border:`1px solid #333`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:11, letterSpacing:1, ...cond }}>NO</button>
+                              style={{ height:34, padding:"0 10px", background:"transparent", border:`1px solid #333`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:14, letterSpacing:1, ...cond }}>NO</button>
                           </div>
                         ) : (
                           <button onClick={() => setSuppDeleteConfirm(si)}
-                            style={{ width:30, height:30, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:16, lineHeight:1, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+                            style={{ width:34, height:34, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:20, lineHeight:1, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
                         )}
                       </div>
                     ))}
                     <button onClick={() => setTmpSupplements([...tmpSupplements, { name:"", amount:"", time:"" }])}
-                      style={{ width:"100%", padding:12, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:13, ...cond }}>+ ADD SUPPLEMENT</button>
+                      style={{ width:"100%", padding:14, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:17, ...cond }}>+ ADD SUPPLEMENT</button>
                   </div>
 
                   <button onClick={() => {
@@ -302,7 +302,7 @@
                     setRestSecs(rs); setSupplements(tmpSupplements); setCooldownMs(cdMs); setBlockPlan(bp);
                     load("cfg").then(cfg => save("cfg", { ...(cfg||{}), restSecs: rs, cooldownMs: cdMs, supplements: tmpSupplements, blockPlan: bp }));
                     setMenuOpen(false);
-                  }} style={{ background:ACC, color:BG, border:"none", padding:16, fontSize:18, fontWeight:900, letterSpacing:3, width:"100%", borderRadius:4, cursor:"pointer", ...cond }}>SAVE</button>
+                  }} style={{ background:ACC, color:BG, border:"none", padding:18, fontSize:24, fontWeight:900, letterSpacing:3, width:"100%", borderRadius:4, cursor:"pointer", ...cond }}>SAVE</button>
                 </>}
 
                 {menuTab === "data" && <>
@@ -345,12 +345,12 @@
         );
       };
 
-      if (!ready) return <div style={{ background:BG, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", ...mono, color:"#888", fontSize:13 }}>···</div>;
+      if (!ready) return <div style={{ background:BG, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", ...mono, color:"#888", fontSize:18 }}>···</div>;
 
       const miniLevel  = rpgSnap?.level || 1;
       const miniPct    = rpgSnap?.progress?.pct || 0;
       const miniStreak = rpgSnap?.streakState?.current || 0;
 
       return (
-        <div style={{ background:BG, minHeight:"100vh", color:"#f0f0ed", ...cond, maxWidth:480, margin:"0 auto", paddingBottom:100 }}>
+        <div style={{ background:BG, minHeight:"100vh", color:"#f0f0ed", ...cond, maxWidth:"min(96vw, 760px)", margin:"0 auto", paddingBottom:100, fontSize:18 }}>
           {/* ── Header ── */}

@@ -2,10 +2,10 @@
     function defaultBlockPlan() {
       return {
         templates: [
-          { id: "morning", name: "Morning Routine", slot: "morning", cadenceEvery: 1, exerciseNames: ["Push-ups"] },
-          { id: "training", name: "Training", slot: "training", cadenceEvery: 1, exerciseNames: ["Pull-ups"] },
+          { id: "routine", name: "Daily Routine", requiresPause: false, cadenceEvery: 1, exerciseNames: ["Push-ups"] },
+          { id: "training", name: "Training Block", requiresPause: true, cadenceEvery: 2, exerciseNames: ["Pull-ups"] },
         ],
-        restRule: { mode: "everyNthDay", value: 2, anchorDate: "2026-01-01" },
+        restRule: { mode: "everyNthDay", value: 2, pauseDays: 1, anchorDate: "2026-01-01" },
       };
     }
 
@@ -15,33 +15,70 @@
       const src = raw && typeof raw === "object" ? raw : {};
       const templates = Array.isArray(src.templates) && src.templates.length ? src.templates : fallback.templates;
       const restRule = src.restRule && typeof src.restRule === "object" ? src.restRule : fallback.restRule;
+      const normalizedTemplates = normalizeTemplates(templates.map(normalizeTemplate).filter(Boolean));
       return {
-        templates: templates.map(normalizeTemplate).filter(Boolean),
-        restRule: normalizeRestRule(restRule),
+        templates: normalizedTemplates,
+        restRule: normalizeRestRule(restRule, normalizedTemplates),
       };
     }
 
     // WHY: Enforce minimal template shape so rendering and planning never crash on bad config.
     function normalizeTemplate(template) {
       if (!template || typeof template !== "object") return null;
-      const slot = template.slot === "morning" ? "morning" : "training";
-      const cadenceEvery = Math.max(1, parseInt(template.cadenceEvery || 1, 10) || 1);
+      const requiresPause = template.requiresPause === true || template.slot === "training";
+      const minCadence = requiresPause ? 2 : 1;
+      const cadenceEvery = Math.max(minCadence, parseInt(template.cadenceEvery || minCadence, 10) || minCadence);
       const exerciseNames = Array.isArray(template.exerciseNames) ? template.exerciseNames.filter(Boolean) : [];
       return {
-        id: String(template.id || `${slot}_${Date.now()}`),
-        name: String(template.name || (slot === "morning" ? "Morning Routine" : "Training")),
-        slot,
+        id: String(template.id || `block_${Date.now()}`),
+        name: String(template.name || (requiresPause ? "Training Block" : "Daily Routine")),
+        requiresPause,
         cadenceEvery,
         exerciseNames,
       };
     }
 
+    // WHY: Training blocks form a loop where one rest gap must exist in each cycle.
+    function cycleBaseFromTemplates(templates) {
+      const pauseBlocks = (templates || []).filter((t) => t.requiresPause).length;
+      return Math.max(2, pauseBlocks + 1);
+    }
+
+    // WHY: The tightest pause cadence across pause-required blocks defines maximum safe daily block density.
+    function minPauseCadence(templates) {
+      const vals = (templates || []).filter((t) => t.requiresPause).map((t) => t.cadenceEvery);
+      return vals.length ? Math.min(...vals) : 2;
+    }
+
+    // WHY: Keep cadence data deterministic by deriving it from the number of pause blocks.
+    function normalizeTemplates(templates) {
+      return templates.map((t) => normalizeTemplate(t)).filter(Boolean);
+    }
+
+    // WHY: Runtime add-block actions should never exceed what the configured pause loop can safely support.
+    function canAddBlockForPlan(plan, currentBlockCount) {
+      const normalized = normalizeBlockPlan(plan);
+      const pauseBlocks = normalized.templates.filter((t) => t.requiresPause).length;
+      const cadenceCap = pauseBlocks > 0 ? Math.max(1, minPauseCadence(normalized.templates)) : 1;
+      const cycleBase = cycleBaseFromTemplates(normalized.templates);
+      const restValid = normalized.restRule.mode !== "everyNthDay"
+        || normalized.restRule.value % cycleBase === 0;
+      return restValid && currentBlockCount < cadenceCap;
+    }
+
     // WHY: Keep rest behavior simple but predictable across all user plans.
-    function normalizeRestRule(rule) {
+    function normalizeRestRule(rule, templates) {
       const mode = rule.mode === "afterNTrainDays" ? "afterNTrainDays" : "everyNthDay";
-      const value = Math.max(1, parseInt(rule.value || 2, 10) || 2);
+      const cycleBase = cycleBaseFromTemplates(templates || []);
+      const cadenceBase = minPauseCadence(templates || []);
+      const rawValue = Math.max(1, parseInt(rule.value || 2, 10) || 2);
+      const value = mode === "everyNthDay"
+        ? Math.ceil(Math.max(cycleBase, cadenceBase, rawValue) / cycleBase) * cycleBase
+        : rawValue;
+      const pauseDays = Math.max(1, parseInt(rule.pauseDays || 1, 10) || 1);
+      const maxPauseDays = mode === "everyNthDay" ? Math.max(1, value - 1) : 30;
       const anchorDate = typeof rule.anchorDate === "string" ? rule.anchorDate : "2026-01-01";
-      return { mode, value, anchorDate };
+      return { mode, value, pauseDays: Math.min(pauseDays, maxPauseDays), anchorDate };
     }
 
     // WHY: Convert dates into stable whole-day indexes independent from local clock time.
@@ -54,12 +91,19 @@
     // WHY: Support "every Nth day" pause cadence for straightforward alternating schedules.
     function isPauseByNthDay(restRule, date) {
       const offset = dayDiff(restRule.anchorDate, date);
-      return offset % restRule.value === restRule.value - 1;
+      const cyclePos = offset % restRule.value;
+      return cyclePos >= restRule.value - restRule.pauseDays;
     }
 
     // WHY: Support "pause after N train days" without adding complex weekly rule engines.
     function isPauseAfterTrainRun(restRule, priorSessions) {
       const sorted = [...priorSessions].sort((a, b) => b.date.localeCompare(a.date));
+      let restRun = 0;
+      for (const s of sorted) {
+        if ((s?.type || "A") !== "B") break;
+        restRun += 1;
+      }
+      if (restRun > 0) return restRun < restRule.pauseDays;
       let trainRun = 0;
       for (const s of sorted) {
         if ((s?.type || "A") === "B") break;
@@ -77,18 +121,10 @@
       return isPauseByNthDay(plan.restRule, date) ? "B" : "A";
     }
 
-    // WHY: Cadence per template lets users express alternating focus blocks without many options.
+    // WHY: Per-block cadence should decide whether the block appears on this date.
     function isTemplateScheduledToday(template, date, anchorDate) {
       const offset = dayDiff(anchorDate || "2026-01-01", date);
-      return offset % template.cadenceEvery === 0;
-    }
-
-    // WHY: Build today's template list once so UI and defaults derive from the same schedule source.
-    function templatesForDaySlot(plan, slot, date) {
-      const anchor = plan?.restRule?.anchorDate || "2026-01-01";
-      return (plan?.templates || [])
-        .filter((t) => t.slot === slot)
-        .filter((t) => isTemplateScheduledToday(t, date, anchor));
+      return offset % Math.max(1, template.cadenceEvery || 1) === 0;
     }
 
     // WHY: Prefer template-configured exercises but gracefully fall back to history to reduce setup friction.
@@ -101,115 +137,129 @@
     // ─── BlockPlanEditor UI components ──────────────────────────────────────────
 
     // WHY: Isolated sub-component so each template row stays readable and testable on its own.
-    function TemplateRow({ template, onChange, onRemove, canRemove }) {
-      const slotBtn = (s) => ({
-        flex:1, padding:"6px 0", fontWeight:700, fontSize:11, letterSpacing:1, cursor:"pointer",
-        border:`1px solid ${template.slot===s ? ACC : BDR}`, borderRadius:3, ...cond,
-        background: template.slot===s ? ACC : "transparent", color: template.slot===s ? BG : "#777",
-      });
+    function TemplateRow({ template, cycleBase, onChange, onRemove, canRemove }) {
+      const cadenceStep = template.requiresPause ? cycleBase : 1;
+      const cadenceMin = template.requiresPause ? Math.max(2, cycleBase) : 1;
       return (
         <div style={{ background:"#0d0d0d", border:`1px solid ${BDR}`, borderRadius:6, padding:"12px 14px", marginBottom:10 }}>
           <div style={{ display:"flex", gap:8, marginBottom:8 }}>
             <input value={template.name} onChange={e => onChange({ name: e.target.value })}
-              style={{ flex:1, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:14, ...cond, fontWeight:700, boxSizing:"border-box" }} />
-            {canRemove && <button onClick={onRemove} style={{ width:34, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:16 }}>×</button>}
+              style={{ flex:1, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"10px 12px", borderRadius:3, outline:"none", fontSize:18, ...cond, fontWeight:700, boxSizing:"border-box" }} />
+            {canRemove && <button onClick={onRemove} style={{ width:40, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:20 }}>×</button>}
           </div>
-          <div style={{ display:"flex", gap:6, marginBottom:8 }}>
-            {["morning","training"].map(s => <button key={s} onClick={() => onChange({ slot: s })} style={slotBtn(s)}>{s.toUpperCase()}</button>)}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:8 }}>
+            <span style={{ ...mono, fontSize:13, color:"#666" }}>REQUIRES PAUSE</span>
+            <button
+              onClick={() => onChange({ requiresPause: !template.requiresPause })}
+              style={{
+                minWidth:120, padding:"8px 10px", borderRadius:3, cursor:"pointer", ...cond,
+                border:`1px solid ${template.requiresPause ? ACC : BDR}`,
+                background: template.requiresPause ? ACC : "transparent",
+                color: template.requiresPause ? BG : "#777", fontWeight:700, fontSize:14,
+              }}
+            >
+              {template.requiresPause ? "YES" : "NO"}
+            </button>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ ...mono, fontSize:10, color:"#666" }}>EVERY</span>
-            <button onClick={() => onChange({ cadenceEvery: Math.max(1, template.cadenceEvery - 1) })} style={{ width:28, height:28, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono }}>−</button>
-            <span style={{ ...mono, fontSize:16, color:"#ddd", minWidth:20, textAlign:"center" }}>{template.cadenceEvery}</span>
-            <button onClick={() => onChange({ cadenceEvery: template.cadenceEvery + 1 })} style={{ width:28, height:28, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono }}>+</button>
-            <span style={{ ...mono, fontSize:10, color:"#666" }}>DAYS</span>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+            <span style={{ ...mono, fontSize:13, color:"#666" }}>EVERY</span>
+            <button onClick={() => onChange({ cadenceEvery: Math.max(cadenceMin, template.cadenceEvery - cadenceStep) })} style={{ width:34, height:34, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:20 }}>−</button>
+            <span style={{ ...mono, fontSize:22, color:"#ddd", minWidth:24, textAlign:"center" }}>{template.cadenceEvery}</span>
+            <button onClick={() => onChange({ cadenceEvery: template.cadenceEvery + cadenceStep })} style={{ width:34, height:34, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:20 }}>+</button>
+            <span style={{ ...mono, fontSize:13, color:"#666" }}>DAYS</span>
           </div>
+          {template.requiresPause && <div style={{ ...mono, fontSize:13, color:"#888" }}>Loop cadence: every {cycleBase} day(s)</div>}
+          {!template.requiresPause && <div style={{ ...mono, fontSize:13, color:"#666" }}>Runs daily as routine block</div>}
         </div>
       );
     }
 
     // WHY: Pause rules stay in one place; mode + N covers alternating and run-length patterns.
-    function RestRuleEditor({ rule, onChange }) {
+    function RestRuleEditor({ rule, cycleBase, onChange }) {
       const modeBtn = (mode, label) => ({
-        flex:1, padding:"7px 4px", fontWeight:700, fontSize:10, letterSpacing:0.5, cursor:"pointer",
+        flex:1, padding:"10px 6px", fontWeight:700, fontSize:13, letterSpacing:0.5, cursor:"pointer",
         border:`1px solid ${rule.mode===mode ? ACC : BDR}`, borderRadius:3, ...cond,
         background: rule.mode===mode ? ACC : "transparent", color: rule.mode===mode ? BG : "#777",
       });
       const desc = rule.mode === "afterNTrainDays"
-        ? `Rest after ${rule.value} consecutive training day${rule.value > 1 ? "s" : ""}`
-        : `Rest on every ${rule.value}${rule.value===2?"nd":rule.value===3?"rd":"th"} day`;
+        ? `Pause after ${rule.value} training day(s), then pause ${rule.pauseDays} day(s)`
+        : `Pause rhythm must be a multiple of ${cycleBase} (training loop + pause)`;
+      const step = rule.mode === "everyNthDay" ? cycleBase : 1;
       return (
         <div style={{ marginTop:16 }}>
-          <div style={{ ...lbl9, marginBottom:10 }}>PAUSE RULE</div>
+          <div style={{ ...lbl9, marginBottom:10, fontSize:14 }}>PAUSE RULE</div>
           <div style={{ display:"flex", gap:6, marginBottom:12 }}>
             <button style={modeBtn("everyNthDay","EVERY N DAYS")} onClick={() => onChange({ mode:"everyNthDay" })}>EVERY N DAYS</button>
             <button style={modeBtn("afterNTrainDays","AFTER N TRAIN DAYS")} onClick={() => onChange({ mode:"afterNTrainDays" })}>AFTER N TRAIN DAYS</button>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
-            <span style={{ ...mono, fontSize:11, color:"#666" }}>N =</span>
-            <button onClick={() => onChange({ value: Math.max(1, rule.value - 1) })} style={{ width:36, height:36, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:20 }}>−</button>
-            <span style={{ ...mono, fontSize:22, fontWeight:700, color:"#ddd", minWidth:28, textAlign:"center" }}>{rule.value}</span>
-            <button onClick={() => onChange({ value: rule.value + 1 })} style={{ width:36, height:36, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:20 }}>+</button>
+            <span style={{ ...mono, fontSize:15, color:"#666" }}>N =</span>
+            <button onClick={() => onChange({ value: Math.max(1, rule.value - step) })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>−</button>
+            <span style={{ ...mono, fontSize:28, fontWeight:700, color:"#ddd", minWidth:34, textAlign:"center" }}>{rule.value}</span>
+            <button onClick={() => onChange({ value: rule.value + step })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>+</button>
           </div>
-          <div style={{ ...mono, fontSize:11, color:"#555" }}>{desc}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+            <span style={{ ...mono, fontSize:15, color:"#666" }}>PAUSE DAYS</span>
+            <button onClick={() => onChange({ pauseDays: Math.max(1, rule.pauseDays - 1) })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>−</button>
+            <span style={{ ...mono, fontSize:28, fontWeight:700, color:"#ddd", minWidth:34, textAlign:"center" }}>{rule.pauseDays}</span>
+            <button onClick={() => onChange({ pauseDays: rule.pauseDays + 1 })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>+</button>
+          </div>
+          <div style={{ ...mono, fontSize:15, color:"#555" }}>{desc}</div>
         </div>
       );
     }
 
     // WHY: Top-level block plan editor keeps template list + rest rule co-located so config feels cohesive.
     function BlockPlanEditor({ plan, onChange }) {
+      const emitPlan = (next) => onChange(normalizeBlockPlan(next));
+      const cycleBase = cycleBaseFromTemplates(plan.templates);
       const updateTemplate = (idx, patch) => {
         const updated = plan.templates.map((t, i) => i !== idx ? t : normalizeTemplate({ ...t, ...patch }));
-        onChange({ ...plan, templates: updated });
+        emitPlan({ ...plan, templates: updated });
       };
       const addTemplate = () => {
-        const t = normalizeTemplate({ id: `t${Date.now()}`, name: "New Block", slot: "training", cadenceEvery: 1 });
-        onChange({ ...plan, templates: [...plan.templates, t] });
+        const t = normalizeTemplate({ id: `t${Date.now()}`, name: "New Block", requiresPause: false, cadenceEvery: 1 });
+        emitPlan({ ...plan, templates: [...plan.templates, t] });
       };
-      const removeTemplate = (idx) => onChange({ ...plan, templates: plan.templates.filter((_, i) => i !== idx) });
-      const updateRestRule = (patch) => onChange({ ...plan, restRule: { ...plan.restRule, ...patch } });
+      const removeTemplate = (idx) => emitPlan({ ...plan, templates: plan.templates.filter((_, i) => i !== idx) });
+      const updateRestRule = (patch) => emitPlan({ ...plan, restRule: { ...plan.restRule, ...patch } });
       return (
         <div>
           {plan.templates.map((t, idx) => (
-            <TemplateRow key={t.id} template={t} onChange={p => updateTemplate(idx, p)}
+            <TemplateRow key={t.id} template={t} cycleBase={cycleBase} onChange={p => updateTemplate(idx, p)}
               onRemove={() => removeTemplate(idx)} canRemove={plan.templates.length > 1} />
           ))}
-          <button onClick={addTemplate} style={{ width:"100%", padding:10, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:13, ...cond, marginBottom:4 }}>+ ADD BLOCK</button>
-          <RestRuleEditor rule={plan.restRule} onChange={updateRestRule} />
+          <button onClick={addTemplate} style={{ width:"100%", padding:12, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:17, ...cond, marginBottom:4 }}>+ ADD BLOCK</button>
+          <RestRuleEditor rule={plan.restRule} cycleBase={cycleBase} onChange={updateRestRule} />
         </div>
       );
     }
 
     // WHY: Create full default day payload in one place to keep App initialization focused on state wiring.
     function buildDefaultDayPayload({ date, priorSessions, dayType, lastTargets, plan }) {
-      const trainingTemplates = dayType === "B" ? [] : templatesForDaySlot(plan, "training", date);
-      const morningTemplates = templatesForDaySlot(plan, "morning", date);
+      const templates = normalizeBlockPlan(plan).templates;
+      const anchor = plan?.restRule?.anchorDate || "2026-01-01";
+      const activeTemplates = templates.filter((t) => isTemplateScheduledToday(t, date, anchor));
       const lastTraining = [...priorSessions].reverse().find((s) => s.type === "A");
       const lastMorn = [...priorSessions].reverse().find((s) => s.mornExercises?.length);
       const lastTrainNames = (lastTraining?.exercises || []).map((e) => e.name);
       const lastMornNames = (lastMorn?.mornExercises || []).map((e) => e.name);
 
-      const trainBlocks = buildTrainingBlocks(trainingTemplates, lastTrainNames, lastTargets);
-      const mornExercises = buildMorningExercises(morningTemplates, lastMornNames, lastTargets);
+      const trainBlocks = dayType === "B"
+        ? []
+        : buildTrainingBlocks(activeTemplates, lastTrainNames, lastTargets, priorSessions);
+      const mornExercises = [];
       return { trainBlocks, mornExercises, exercises: flattenBlocks(trainBlocks) };
     }
 
     // WHY: Keep block instantiation isolated so future template attributes can be added without touching App.
-    function buildTrainingBlocks(templates, fallbackNames, lastTargets) {
-      if (!templates.length) return [];
+    function buildTrainingBlocks(templates, fallbackNames, lastTargets, priorSessions) {
+      if (!templates.length) {
+        const names = fallbackNames.length ? fallbackNames : ["Pull-ups"];
+        return [mkBlock(mkExFromTargets(names, lastTargets), "Training Block")];
+      }
       return templates.map((template) => {
         const names = resolveTemplateExerciseNames({ template, fallbackNames, fallbackSingle: "Pull-ups" });
-        const exercises = mkExFromTargets(names, lastTargets);
-        return mkBlock(exercises, template.name);
+        return mkBlock(mkExFromTargets(names, lastTargets), template.name);
       });
-    }
-
-    // WHY: Morning defaults stay independent from training templates to support mixed daily routines.
-    function buildMorningExercises(templates, fallbackNames, lastTargets) {
-      if (!templates.length) {
-        const names = fallbackNames.length ? fallbackNames : ["Push-ups"];
-        return mkExFromTargets(names, lastTargets);
-      }
-      const names = resolveTemplateExerciseNames({ template: templates[0], fallbackNames, fallbackSingle: "Push-ups" });
-      return mkExFromTargets(names, lastTargets);
     }

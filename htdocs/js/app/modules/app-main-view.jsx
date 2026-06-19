@@ -2,8 +2,8 @@
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
               <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("stats"); setMenuOpen(true); }} style={{ background:"#0d1a00", border:`1px solid #2a4a00`, borderRadius:6, padding:"8px 10px", cursor:"pointer", textAlign:"left", minWidth:90 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <div style={{ ...mono, fontSize:12, color:ACC, fontWeight:700 }}>LV {miniLevel}</div>
-                  {miniStreak > 0 && <div style={{ ...mono, fontSize:12, color:"#aaa" }}>🔥{miniStreak}</div>}
+                  <div style={{ ...mono, fontSize:15, color:ACC, fontWeight:700 }}>LV {miniLevel}</div>
+                  {miniStreak > 0 && <div style={{ ...mono, fontSize:15, color:"#aaa" }}>🔥{miniStreak}</div>}
                 </div>
                 <div style={{ height:3, background:"#1a1a1a", borderRadius:2, marginTop:4, overflow:"hidden" }}>
                   <div style={{ height:"100%", background:ACC, width:`${miniPct}%`, borderRadius:2, transition:"width 0.8s ease" }}/>
@@ -11,7 +11,7 @@
               </button>
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <SyncLed />
-                <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("stats"); setMenuOpen(true); }} style={{ background:"none", border:`1px solid #333`, color:"#bbb", cursor:"pointer", padding:"8px 10px", fontSize:18, borderRadius:4 }}>⚙</button>
+                <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("stats"); setMenuOpen(true); }} style={{ background:"none", border:`1px solid #333`, color:"#bbb", cursor:"pointer", padding:"10px 12px", fontSize:24, borderRadius:4 }}>⚙</button>
               </div>
             </div>
 
@@ -27,15 +27,15 @@
                 : null;
               return <>
                 <div style={{ marginTop:4, lineHeight:0.88 }}>
-                  <div style={{ fontSize:80, fontWeight:900, letterSpacing:-3, color:urgencyColor }}>{isRest ? "REST" : "TRAIN"}</div>
-                  {urgencyTag && <div style={{ fontSize:22, fontWeight:900, letterSpacing:2, color:urgencyColor, marginTop:4 }}>{urgencyTag}</div>}
+                  <div style={{ fontSize:"clamp(88px, 16vw, 140px)", fontWeight:900, letterSpacing:-3, color:urgencyColor }}>{isRest ? "REST" : "TRAIN"}</div>
+                  {urgencyTag && <div style={{ fontSize:"clamp(28px, 4vw, 42px)", fontWeight:900, letterSpacing:2, color:urgencyColor, marginTop:4 }}>{urgencyTag}</div>}
                 </div>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                    <button onClick={() => setHeaderDayOffset(o => o - 1)} title="Previous day" style={{ background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, padding:"2px 8px", cursor:"pointer", fontSize:14, lineHeight:1 }}>‹</button>
+                    <button onClick={() => setHeaderDayOffset(o => o - 1)} title="Previous day" style={{ background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, padding:"4px 10px", cursor:"pointer", fontSize:20, lineHeight:1 }}>‹</button>
                     <button onClick={openHeaderDayEditor} title="Edit day" style={{ ...lbl9, background:"none", border:"none", cursor:"pointer", color:"#aaa" }}>{fmtDate(headerDate).toUpperCase()}</button>
-                    <button onClick={() => setHeaderDayOffset(0)} title="Go to today" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"2px 8px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:10, letterSpacing:1, lineHeight:1, ...cond }}>TODAY</button>
-                    <button onClick={() => setHeaderDayOffset(o => Math.min(0, o + 1))} title="Next day" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"2px 8px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:14, lineHeight:1 }}>›</button>
+                    <button onClick={() => setHeaderDayOffset(0)} title="Go to today" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:13, letterSpacing:1.5, lineHeight:1, ...cond }}>TODAY</button>
+                    <button onClick={() => setHeaderDayOffset(o => Math.min(0, o + 1))} title="Next day" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:20, lineHeight:1 }}>›</button>
                   </div>
                 </div>
               </>;
@@ -43,50 +43,54 @@
           </div>
           <div style={{ height:1, background:BDR }} />
 
-          {/* ── Morning Workout ── */}
-          <div style={{ padding:"20px 20px 0" }}>
-            <div style={{ background:CARD, border:`1px solid ${mornDone ? "#2a4a00" : BDR}`, borderRadius:6, overflow:"hidden", marginBottom:12 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 14px", borderBottom: mornCollapsed ? "none" : `1px solid ${BDR}` }}>
-                <button onClick={toggleMorningComplete} title={mornDone ? "Done - tap to reset" : "Mark block as done"}
-                  style={{ width:34, height:34, flexShrink:0, borderRadius:3, border:`2px solid ${mornDone ? ACC : "#666"}`, background: mornDone ? ACC : "transparent", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
-                  {mornDone && <span style={{ color:BG, fontSize:18, fontWeight:700, lineHeight:1 }}>✓</span>}
-                </button>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ ...mono, fontSize:11, color:"#888", letterSpacing:2 }}>BLOCK 0</div>
-                  <div style={{ fontSize:24, fontWeight:900, letterSpacing:1, color:"#aaa" }}>MORNING ROUTINE</div>
+          {mornExercises.length > 0 && (
+            <>
+              {/* ── Legacy Morning Block (only shown when historical data exists) ── */}
+              <div style={{ padding:"20px 20px 0" }}>
+                <div style={{ background:CARD, border:`1px solid ${mornDone ? "#2a4a00" : BDR}`, borderRadius:6, overflow:"hidden", marginBottom:12 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 14px", borderBottom: mornCollapsed ? "none" : `1px solid ${BDR}` }}>
+                    <button onClick={toggleMorningComplete} title={mornDone ? "Done - tap to reset" : "Mark block as done"}
+                      style={{ width:34, height:34, flexShrink:0, borderRadius:3, border:`2px solid ${mornDone ? ACC : "#666"}`, background: mornDone ? ACC : "transparent", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+                      {mornDone && <span style={{ color:BG, fontSize:18, fontWeight:700, lineHeight:1 }}>✓</span>}
+                    </button>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ ...mono, fontSize:14, color:"#888", letterSpacing:2 }}>BLOCK 0</div>
+                      <div style={{ fontSize:34, fontWeight:900, letterSpacing:1, color:"#aaa" }}>MORNING ROUTINE</div>
+                    </div>
+                    <button onClick={onToggleMornCollapse} title={mornCollapsed ? "Expand" : "Collapse"} style={{ width:34, height:34, flexShrink:0, background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:14, lineHeight:1 }}>
+                      {mornCollapsed ? "▾" : "▴"}
+                    </button>
+                  </div>
+                  {!mornCollapsed && (
+                    <div style={{ padding:"14px 18px 18px" }}>
+                      <ExercisesSection
+                        exercises={mornExercises}
+                        done={mornDone}
+                        onSetRep={onMornSetRep}
+                        onDelRep={onMornDelRep}
+                        onAddExercise={onMornAddEx}
+                        onOpenModal={(ei) => { setModalTarget({ section:"morn", ei }); setModalOpen(true); }}
+                        onDeleteExercise={onMornDelEx}
+                        onAddRep={onMornAddRep}
+                        onToggleDone={onMornToggleDone}
+                        onComplete={toggleMorningComplete}
+                        onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
+                        showComplete={!mornDone}
+                      />
+                    </div>
+                  )}
                 </div>
-                <button onClick={onToggleMornCollapse} title={mornCollapsed ? "Expand" : "Collapse"} style={{ width:34, height:34, flexShrink:0, background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:14, lineHeight:1 }}>
-                  {mornCollapsed ? "▾" : "▴"}
-                </button>
               </div>
-              {!mornCollapsed && (
-                <div style={{ padding:"14px 18px 18px" }}>
-                  <ExercisesSection
-                    exercises={mornExercises}
-                    done={mornDone}
-                    onSetRep={onMornSetRep}
-                    onDelRep={onMornDelRep}
-                    onAddExercise={onMornAddEx}
-                    onOpenModal={(ei) => { setModalTarget({ section:"morn", ei }); setModalOpen(true); }}
-                    onDeleteExercise={onMornDelEx}
-                    onAddRep={onMornAddRep}
-                    onToggleDone={onMornToggleDone}
-                    onComplete={toggleMorningComplete}
-                    onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
-                    showComplete={!mornDone}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-          <div style={{ height:1, background:BDR, margin:"20px 0 0" }} />
+              <div style={{ height:1, background:BDR, margin:"20px 0 0" }} />
+            </>
+          )}
 
           {/* ── Training ── */}
           <div style={{ padding:"20px 20px 0" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-              <div style={{ fontSize:26, fontWeight:900, letterSpacing:1, color: typeColor }}>TRAINING</div>
+              <div style={{ fontSize:36, fontWeight:900, letterSpacing:1, color: typeColor }}>TRAINING</div>
               {trainType === "A" && trainBlocks.length > 1 && (
-                <button onClick={onToggleAllCollapse} style={{ background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:4, cursor:"pointer", padding:"6px 12px", fontSize:10, letterSpacing:2, ...cond, fontWeight:700 }}>
+                <button onClick={onToggleAllCollapse} style={{ background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:4, cursor:"pointer", padding:"8px 14px", fontSize:14, letterSpacing:2, ...cond, fontWeight:700 }}>
                   {allCollapsed ? "EXPAND ALL" : "COLLAPSE ALL"}
                 </button>
               )}
@@ -113,7 +117,7 @@
                   onDeleteBlock={() => onDelBlock(bi)}
                 />
               ))}
-              <button onClick={onAddBlock} style={{ width:"100%", padding:14, background:"transparent", border:`1px dashed #444`, color:"#aaa", borderRadius:6, cursor:"pointer", fontSize:14, letterSpacing:2, ...cond, fontWeight:700, marginBottom:12 }}>
+              <button disabled={!canAddBlock} onClick={onAddBlock} style={{ width:"100%", padding:16, background:"transparent", border:`1px dashed ${canAddBlock ? "#444" : "#2a2a2a"}`, color: canAddBlock ? "#aaa" : "#555", borderRadius:6, cursor: canAddBlock ? "pointer" : "default", fontSize:20, letterSpacing:2, ...cond, fontWeight:700, marginBottom:12 }}>
                 ＋ ADD BLOCK
               </button>
               {(() => {
@@ -131,11 +135,11 @@
             </>}
             {trainType === "B" && (
               <div style={{ background:CARD, border:`1px solid ${BDR}`, borderRadius:6, padding:20, marginBottom:12 }}>
-                <div style={{ fontSize:13, color:RED, letterSpacing:4, marginBottom:12 }}>REST DAY — NO TRAINING</div>
-                <div style={{ fontSize:15, color:"#aaa", lineHeight:1.7 }}>Tendons and nervous system repair micro-injuries. No pull-ups, not even briefly.</div>
+                <div style={{ fontSize:18, color:RED, letterSpacing:4, marginBottom:12 }}>REST DAY — NO TRAINING</div>
+                <div style={{ fontSize:20, color:"#aaa", lineHeight:1.7 }}>Tendons and nervous system repair micro-injuries. No pull-ups, not even briefly.</div>
                 <div style={{ marginTop:20, paddingTop:16, borderTop:`1px solid ${BDR}`, display:"flex", alignItems:"center", gap:10 }}>
                   <div style={{ width:8, height:8, borderRadius:"50%", background:"#2c6e35", flexShrink:0 }} />
-                  <span style={{ fontSize:13, color:"#888", letterSpacing:1 }}>Cycling &amp; cardio allowed</span>
+                  <span style={{ fontSize:18, color:"#888", letterSpacing:1 }}>Cycling &amp; cardio allowed</span>
                 </div>
               </div>
             )}
@@ -155,8 +159,8 @@
                       {isChecked && <span style={{ color:BG, fontSize:13, fontWeight:700, lineHeight:1 }}>✓</span>}
                     </div>
                     <div style={{ flex:1 }}>
-                      <span style={{ fontSize:16, color: isChecked ? "#555" : "#ddd", textDecoration: isChecked ? "line-through" : "none" }}>{supp.name} {supp.amount && `— ${supp.amount}`}</span>
-                      {supp.time && <div style={{ fontSize:13, color:"#bbb", marginTop:2 }}>{supp.time}</div>}
+                      <span style={{ fontSize:22, color: isChecked ? "#555" : "#ddd", textDecoration: isChecked ? "line-through" : "none" }}>{supp.name} {supp.amount && `— ${supp.amount}`}</span>
+                      {supp.time && <div style={{ fontSize:17, color:"#bbb", marginTop:2 }}>{supp.time}</div>}
                     </div>
                   </div>
                 );
@@ -209,7 +213,7 @@
           {achQueue.length > 0 && (
             <AchievementToast achievement={achQueue[0]} onDone={() => setAchQueue(q => q.slice(1))} />
           )}
-          <div style={{ textAlign:"center", padding:"24px 0 8px", fontSize:11, color:"#444" }}>
+          <div style={{ textAlign:"center", padding:"24px 0 8px", fontSize:14, color:"#444" }}>
             <a href="https://github.com/nickyreinert/f1l0" target="_blank" rel="noopener noreferrer" style={{ color:"#555", textDecoration:"none", letterSpacing:2 }}>ABOUT</a>
           </div>
         </div>

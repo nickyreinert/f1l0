@@ -166,7 +166,8 @@
       const onUncheckBlock= (bi)         => commitBlocks(mutUncheckBlock(trainBlocks,bi));
       const onBlkCollapse = (bi)         => commitBlocks(mutToggleCollapse(trainBlocks,bi));
       const onBlkSetStart = (bi,ts)      => commitBlocks(mutBlockStart(trainBlocks,bi,ts));
-      const onAddBlock    = ()           => commitBlocks(mutAddBlock(trainBlocks));
+      const canAddBlock   = canAddBlockForPlan(blockPlan, trainBlocks.length);
+      const onAddBlock    = ()           => { if (!canAddBlock) return; commitBlocks(mutAddBlock(trainBlocks)); };
       const onDelBlock    = (bi)         => commitBlocks(mutDelBlock(trainBlocks,bi));
       const allCollapsed  = trainBlocks.length > 0 && trainBlocks.every(b => b.collapsed);
       const onToggleAllCollapse = () => commitBlocks(mutSetCollapseAll(trainBlocks, !allCollapsed));
