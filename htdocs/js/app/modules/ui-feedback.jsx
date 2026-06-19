@@ -68,7 +68,7 @@
     // ─── Cooldown countdown (block header) ───────────────────────────────────────
     // Shows how long is left until startedAt + cooldownMs. Ticks once per second.
     function fmtCountdown(ms) {
-      if (ms <= 0) return "BEREIT";
+      if (ms <= 0) return "Ready";
       const h = Math.floor(ms / 3600000);
       const m = Math.floor((ms % 3600000) / 60000);
       const s = Math.floor((ms % 60000) / 1000);
@@ -84,7 +84,7 @@
       const ready = remaining <= 0;
       return (
         <span style={{ ...mono, fontSize:14, fontWeight:700, color: ready ? ACC : "#e8a000", letterSpacing:1 }}>
-          {ready ? "✓ BEREIT" : `⏳ ${fmtCountdown(remaining)}`}
+          {ready ? "✓ READY" : `⏳ ${fmtCountdown(remaining)}`}
         </span>
       );
     }
