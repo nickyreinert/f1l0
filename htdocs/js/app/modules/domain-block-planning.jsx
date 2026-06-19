@@ -141,7 +141,7 @@
       const cadenceStep = template.requiresPause ? cycleBase : 1;
       const cadenceMin = template.requiresPause ? Math.max(2, cycleBase) : 1;
       return (
-        <div style={{ background:"#0d0d0d", border:`1px solid ${BDR}`, borderRadius:6, padding:"12px 14px", marginBottom:10 }}>
+        <div style={{ background:"#101821", border:`1px solid #2a3a4a`, borderRadius:8, padding:"12px 14px", marginBottom:10 }}>
           <div style={{ display:"flex", gap:8, marginBottom:8 }}>
             <input value={template.name} onChange={e => onChange({ name: e.target.value })}
               style={{ flex:1, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"10px 12px", borderRadius:3, outline:"none", fontSize:18, ...cond, fontWeight:700, boxSizing:"border-box" }} />
@@ -168,8 +168,8 @@
             <button onClick={() => onChange({ cadenceEvery: template.cadenceEvery + cadenceStep })} style={{ width:34, height:34, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:20 }}>+</button>
             <span style={{ ...mono, fontSize:13, color:"#666" }}>DAYS</span>
           </div>
-          {template.requiresPause && <div style={{ ...mono, fontSize:13, color:"#888" }}>Loop cadence: every {cycleBase} day(s)</div>}
-          {!template.requiresPause && <div style={{ ...mono, fontSize:13, color:"#666" }}>Runs daily as routine block</div>}
+          {template.requiresPause && <div style={{ ...mono, fontSize:13, color:"#9fc7df" }}>Loop cadence: every {cycleBase} day(s)</div>}
+          {!template.requiresPause && <div style={{ ...mono, fontSize:13, color:"#8d8d8d" }}>Runs daily as routine block</div>}
         </div>
       );
     }
@@ -186,8 +186,8 @@
         : `Pause rhythm must be a multiple of ${cycleBase} (training loop + pause)`;
       const step = rule.mode === "everyNthDay" ? cycleBase : 1;
       return (
-        <div style={{ marginTop:16 }}>
-          <div style={{ ...lbl9, marginBottom:10, fontSize:14 }}>PAUSE RULE</div>
+        <div style={{ marginTop:16, background:"#1b1216", border:`1px solid #402630`, borderRadius:8, padding:"12px 12px 10px" }}>
+          <div style={{ ...lbl9, marginBottom:10, fontSize:14, color:"#efbacd" }}>PAUSE RULE</div>
           <div style={{ display:"flex", gap:6, marginBottom:12 }}>
             <button style={modeBtn("everyNthDay","EVERY N DAYS")} onClick={() => onChange({ mode:"everyNthDay" })}>EVERY N DAYS</button>
             <button style={modeBtn("afterNTrainDays","AFTER N TRAIN DAYS")} onClick={() => onChange({ mode:"afterNTrainDays" })}>AFTER N TRAIN DAYS</button>
@@ -204,7 +204,7 @@
             <span style={{ ...mono, fontSize:28, fontWeight:700, color:"#ddd", minWidth:34, textAlign:"center" }}>{rule.pauseDays}</span>
             <button onClick={() => onChange({ pauseDays: rule.pauseDays + 1 })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>+</button>
           </div>
-          <div style={{ ...mono, fontSize:15, color:"#555" }}>{desc}</div>
+          <div style={{ ...mono, fontSize:15, color:"#b28ea0" }}>{desc}</div>
         </div>
       );
     }

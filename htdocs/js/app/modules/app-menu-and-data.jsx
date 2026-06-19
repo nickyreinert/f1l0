@@ -104,8 +104,21 @@
         return (
           <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"stretch", zIndex:1500 }} onClick={() => setMenuOpen(false)}>
             <div style={{ background:"#111", width:"100%", borderRadius:0, height:"100%", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
-              <div style={{ display:"flex", borderBottom:`1px solid ${BDR}`, flexShrink:0 }}>
+              <div style={{ position:"relative", display:"flex", borderBottom:`1px solid ${BDR}`, flexShrink:0, paddingRight:60 }}>
                 {TAB("stats","STATS")}{TAB("exercises","EXERCISES")}{TAB("settings","SETTINGS")}{TAB("data","DATA")}
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  title="Close settings"
+                  style={{
+                    position:"absolute", top:8, right:8,
+                    width:44, height:44,
+                    background:"transparent", border:`1px solid #333`, borderRadius:6,
+                    color:"#aaa", fontSize:28, lineHeight:1, cursor:"pointer",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                  }}
+                >
+                  ×
+                </button>
               </div>
               <div style={{ overflowY:"auto", padding:"20px 20px 40px", flex:1, minHeight:0 }}>
 
@@ -197,30 +210,37 @@
                 )}
 
                 {menuTab === "settings" && <>
-                  <div style={{ ...lbl9, marginBottom:14, fontSize:14 }}>BLOCKS</div>
-                  <BlockPlanEditor plan={tmpBlockPlan} onChange={setTmpBlockPlan} />
-                  <div style={{ height:1, background:BDR, margin:"24px 0" }} />
-
-                  <div style={{ ...lbl9, marginBottom:14, fontSize:14 }}>REST TIMER AFTER SET</div>
-                  <div style={{ display:"flex", borderRadius:4, overflow:"hidden", border:`1px solid ${BDR}`, marginBottom:8 }}>
-                    <button onClick={() => setTmpRestSecs(v => Math.max(10, v-10))} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>−</button>
-                    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a1a", ...mono, fontSize:42, fontWeight:700 }}>{tmpRestSecs}s</div>
-                    <button onClick={() => setTmpRestSecs(v => v+10)} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>+</button>
+                  <div style={{ background:"#0c0f14", border:`1px solid #1d2b34`, borderRadius:8, padding:"14px 14px 10px", marginBottom:14 }}>
+                    <div style={{ ...lbl9, marginBottom:6, fontSize:14, color:"#9ed5ff" }}>BLOCK SETUP</div>
+                    <div style={{ ...mono, fontSize:14, color:"#6f8ea3", marginBottom:12 }}>Define your blocks and their pause cadence.</div>
+                    <BlockPlanEditor plan={tmpBlockPlan} onChange={setTmpBlockPlan} />
                   </div>
-                  <div style={{ ...mono, fontSize:17, color:"#aaa", marginBottom:28 }}>Countdown starts after each set</div>
 
-                  <div style={{ ...lbl9, marginBottom:14, fontSize:14 }}>COOLDOWN BETWEEN BLOCKS</div>
-                  <div style={{ display:"flex", borderRadius:4, overflow:"hidden", border:`1px solid ${BDR}`, marginBottom:8 }}>
-                    <button onClick={() => setTmpCooldownMin(v => Math.max(15, v-15))} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>−</button>
-                    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a1a", ...mono, fontSize:38, fontWeight:700 }}>
-                      {Math.floor(tmpCooldownMin/60)}h {String(tmpCooldownMin%60).padStart(2,"0")}m
+                  <div style={{ background:"#10100d", border:`1px solid #2c2a1a`, borderRadius:8, padding:"14px 14px 12px", marginBottom:14 }}>
+                    <div style={{ ...lbl9, marginBottom:10, fontSize:14, color:"#d8cc8f" }}>REST TIMER AFTER SET</div>
+                    <div style={{ display:"flex", borderRadius:4, overflow:"hidden", border:`1px solid ${BDR}`, marginBottom:8 }}>
+                      <button onClick={() => setTmpRestSecs(v => Math.max(10, v-10))} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>−</button>
+                      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a1a", ...mono, fontSize:42, fontWeight:700 }}>{tmpRestSecs}s</div>
+                      <button onClick={() => setTmpRestSecs(v => v+10)} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>+</button>
                     </div>
-                    <button onClick={() => setTmpCooldownMin(v => v+15)} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>+</button>
+                    <div style={{ ...mono, fontSize:17, color:"#aaa" }}>Countdown starts after each set</div>
                   </div>
-                  <div style={{ ...mono, fontSize:17, color:"#aaa", marginBottom:28 }}>Break between training blocks (Grease the Groove)</div>
 
-                  <div style={{ ...lbl9, marginBottom:14, marginTop:20, fontSize:14 }}>SUPPLEMENTS</div>
-                  <div style={{ marginBottom:20 }}>
+                  <div style={{ background:"#10100d", border:`1px solid #2c2a1a`, borderRadius:8, padding:"14px 14px 12px", marginBottom:14 }}>
+                    <div style={{ ...lbl9, marginBottom:10, fontSize:14, color:"#d8cc8f" }}>COOLDOWN BETWEEN BLOCKS</div>
+                    <div style={{ display:"flex", borderRadius:4, overflow:"hidden", border:`1px solid ${BDR}`, marginBottom:8 }}>
+                      <button onClick={() => setTmpCooldownMin(v => Math.max(15, v-15))} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>−</button>
+                      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a1a", ...mono, fontSize:38, fontWeight:700 }}>
+                        {Math.floor(tmpCooldownMin/60)}h {String(tmpCooldownMin%60).padStart(2,"0")}m
+                      </div>
+                      <button onClick={() => setTmpCooldownMin(v => v+15)} style={{ width:82, height:82, background:CARD, border:"none", color:"#bbb", fontSize:36, cursor:"pointer", ...mono }}>+</button>
+                    </div>
+                    <div style={{ ...mono, fontSize:17, color:"#aaa" }}>Break between training blocks (Grease the Groove)</div>
+                  </div>
+
+                  <div style={{ background:"#140d10", border:`1px solid #34202a`, borderRadius:8, padding:"14px 14px 12px", marginBottom:20 }}>
+                    <div style={{ ...lbl9, marginBottom:12, marginTop:2, fontSize:14, color:"#f0b6cb" }}>SUPPLEMENTS</div>
+                    <div>
                     {tmpSupplements.map((supp, si) => (
                       <div
                         key={si}
@@ -293,6 +313,7 @@
                     ))}
                     <button onClick={() => setTmpSupplements([...tmpSupplements, { name:"", amount:"", time:"" }])}
                       style={{ width:"100%", padding:14, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:17, ...cond }}>+ ADD SUPPLEMENT</button>
+                    </div>
                   </div>
 
                   <button onClick={() => {
