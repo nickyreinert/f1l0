@@ -12,7 +12,7 @@
                   : null;
                 return <>
                   <div style={{ lineHeight:0.88, position:"relative" }}>
-                    <div style={{ fontSize:"clamp(88px, 16vw, 140px)", fontWeight:900, letterSpacing:-3, color:urgencyColor }}>{isRest ? "REST" : "TRAIN"}</div>
+                    <div style={{ fontSize:"clamp(60px, 13vw, 128px)", fontWeight:900, letterSpacing:-3, color:urgencyColor }}>{isRest ? "REST" : "TRAIN"}</div>
                     {urgencyTag && <div style={{ fontSize:"clamp(28px, 4vw, 42px)", fontWeight:900, letterSpacing:2, color:urgencyColor, marginTop:4 }}>{urgencyTag}</div>}
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:6 }}>
@@ -32,7 +32,7 @@
                 const ICONS = {
                   protocol: svg(<><path d="M6.5 6.5v11M3.5 9v6M17.5 6.5v11M20.5 9v6M6.5 12h11" /></>),
                   stats: svg(<><path d="M3 21h18M6 21V11M12 21V5M18 21v-7" /></>),
-                  settings: svg(<><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.1 5.1l2.1 2.1M16.8 16.8l2.1 2.1M18.9 5.1l-2.1 2.1M7.2 16.8l-2.1 2.1" /></>),
+                  settings: svg(<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>),
                   data: svg(<><path d="M5 3h11l3 3v15H5z" /><path d="M8 3v5h7V3M8 21v-7h8v7" /></>),
                 };
                 const navBtn = (key, onClick, title) => (
