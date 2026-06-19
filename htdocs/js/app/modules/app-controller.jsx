@@ -38,17 +38,6 @@
       const [suppDragOver, setSuppDragOver]   = useState(null);
       const suppDragRef = useRef({ fromIdx: null });
 
-      const [rpgSnap, setRpgSnap]           = useState(null);
-      const [levelUpEvent, setLevelUpEvent] = useState(null);
-      const [xpEvents, setXpEvents]         = useState(null);
-      const [achQueue, setAchQueue]         = useState([]);
-      const [animateXP, setAnimateXP]       = useState(false);
-
-      const refreshSnap = useCallback(async () => {
-        const snap = await window.Gamification.getSnapshot();
-        setRpgSnap(snap);
-      }, []);
-
       // WHY: Extracted to avoid duplicating 9 setters in both initApp and selectedSession effect.
       const applySessionToState = (today) => {
         setTrainType(today.type);
@@ -113,8 +102,7 @@
             setSessions(all);
           }
 
-          applySessionToState(today);
-          await refreshSnap();
+            applySessionToState(today);
           setReady(true);
       }, []);  // WHY: applySessionToState is stable (only closes over state setters)
 
@@ -251,29 +239,10 @@
         applySessionToState(migrateSession(selectedSession));
       }, [selectedSession]);
 
-      const fireGamificationEvents = (events, newLevel) => {
-        const levelUpEv = events.find(e => e.type === "levelUp");
-        const achEv     = events.find(e => e.type === "achievements");
-        const xpEv      = events.filter(e => ["xp","pr","improvement","weeklyBonus"].includes(e.type));
-        if (levelUpEv) { setLevelUpEvent(newLevel); }
-        else { if (xpEv.length > 0) { setXpEvents(xpEv); setTimeout(() => setXpEvents(null), 3500); } }
-        if (achEv?.list?.length > 0) setAchQueue(q => [...q, ...achEv.list]);
-        setAnimateXP(true);
-        setTimeout(() => setAnimateXP(false), 2000);
-      };
-
-      // Only confirmed (done) exercises count toward XP — pre-filled suggestions don't.
-      const gamSessions = (exs) => exs.filter(ex => ex.done).map(ex => ({ name: ex.name, reps: exTotalReps(ex) }));
-
       const completeMorning = async () => {
         if (mornDone || !isViewingToday) return;
         setMornDone(true);
         await saveMorn(null, true);
-        const result = await window.Gamification.processWorkoutComplete({
-          exerciseSessions: gamSessions(mornExercises), isMorning: true, date: todayStr(),
-        });
-        await refreshSnap();
-        fireGamificationEvents(result.events, result.newLevel);
       };
 
       const toggleMorningComplete = async () => {
@@ -295,12 +264,6 @@
         setTrainDone(true);
         await saveExercises(null, null, true);
         setLastTrainDate(todayStr());
-        const result = await window.Gamification.processWorkoutComplete({
-          exerciseSessions: gamSessions([...mornExercises, ...exercises]),
-          isMorning: false, date: todayStr(),
-        });
-        await refreshSnap();
-        fireGamificationEvents(result.events, result.newLevel);
       };
 
       // Auto-complete a section (award XP) once every exercise in it is confirmed.
@@ -358,7 +321,6 @@
         ["tp_day","tp_morn","tp_history"].forEach(k => localStorage.removeItem(k));
         try { await window.storage._pushAllToCloud(); } catch(e) {}
         setSessions(sess);
-        await refreshSnap();
       };
 
       const typeColor = trainType === "A" ? ACC : RED;

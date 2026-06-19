@@ -1,20 +1,4 @@
           <div style={{ padding:"20px 20px" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-              <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("stats"); setMenuOpen(true); }} style={{ background:"#0d1a00", border:`1px solid #2a4a00`, borderRadius:6, padding:"8px 10px", cursor:"pointer", textAlign:"left", minWidth:90 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <div style={{ ...mono, fontSize:15, color:ACC, fontWeight:700 }}>LV {miniLevel}</div>
-                  {miniStreak > 0 && <div style={{ ...mono, fontSize:15, color:"#aaa" }}>🔥{miniStreak}</div>}
-                </div>
-                <div style={{ height:3, background:"#1a1a1a", borderRadius:2, marginTop:4, overflow:"hidden" }}>
-                  <div style={{ height:"100%", background:ACC, width:`${miniPct}%`, borderRadius:2, transition:"width 0.8s ease" }}/>
-                </div>
-              </button>
-              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <SyncLed />
-                <button onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("stats"); setMenuOpen(true); }} style={{ background:"none", border:`1px solid #333`, color:"#bbb", cursor:"pointer", padding:"10px 12px", fontSize:24, borderRadius:4 }}>⚙</button>
-              </div>
-            </div>
-
             {(() => {
               const daysSince = (lastTrainDate && lastTrainDate !== todayStr())
                 ? Math.floor((new Date(todayStr()+"T12:00:00") - new Date(lastTrainDate+"T12:00:00")) / 86400000)
@@ -26,7 +10,20 @@
                 ? urgency === 2 ? "TRAIN!" : urgency === 3 ? "TRAIN NOW!" : urgency === 4 ? "YOU MUST TRAIN!" : "LAZY BASTARD!"
                 : null;
               return <>
-                <div style={{ marginTop:4, lineHeight:0.88 }}>
+                <div style={{ marginTop:4, lineHeight:0.88, position:"relative", paddingRight:64 }}>
+                  <button
+                    onClick={() => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setMenuTab("settings"); setMenuOpen(true); }}
+                    title="Open settings"
+                    style={{
+                      position:"absolute", top:6, right:0,
+                      width:50, height:50,
+                      background:"transparent", border:`1px solid #333`, color:"#bbb",
+                      cursor:"pointer", borderRadius:6, fontSize:28, lineHeight:1,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                    }}
+                  >
+                    ⚙
+                  </button>
                   <div style={{ fontSize:"clamp(88px, 16vw, 140px)", fontWeight:900, letterSpacing:-3, color:urgencyColor }}>{isRest ? "REST" : "TRAIN"}</div>
                   {urgencyTag && <div style={{ fontSize:"clamp(28px, 4vw, 42px)", fontWeight:900, letterSpacing:2, color:urgencyColor, marginTop:4 }}>{urgencyTag}</div>}
                 </div>
@@ -203,16 +200,6 @@
             />
           )}
 
-          {/* ── Gamification overlays ── */}
-          {levelUpEvent && (
-            <LevelUpOverlay level={levelUpEvent} onDone={() => { setLevelUpEvent(null); setXpEvents(null); }} />
-          )}
-          {xpEvents && !levelUpEvent && (
-            <XPPopup events={xpEvents} onDone={() => setXpEvents(null)} />
-          )}
-          {achQueue.length > 0 && (
-            <AchievementToast achievement={achQueue[0]} onDone={() => setAchQueue(q => q.slice(1))} />
-          )}
           <div style={{ textAlign:"center", padding:"24px 0 8px", fontSize:14, color:"#444" }}>
             <a href="https://github.com/nickyreinert/f1l0" target="_blank" rel="noopener noreferrer" style={{ color:"#555", textDecoration:"none", letterSpacing:2 }}>ABOUT</a>
           </div>

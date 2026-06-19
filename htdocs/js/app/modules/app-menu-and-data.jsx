@@ -368,10 +368,6 @@
 
       if (!ready) return <div style={{ background:BG, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", ...mono, color:"#888", fontSize:18 }}>···</div>;
 
-      const miniLevel  = rpgSnap?.level || 1;
-      const miniPct    = rpgSnap?.progress?.pct || 0;
-      const miniStreak = rpgSnap?.streakState?.current || 0;
-
       return (
         <div style={{ background:BG, minHeight:"100vh", color:"#f0f0ed", ...cond, maxWidth:"min(96vw, 760px)", margin:"0 auto", paddingBottom:100, fontSize:18 }}>
           {/* ── Header ── */}
