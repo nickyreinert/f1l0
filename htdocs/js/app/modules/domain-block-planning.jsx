@@ -197,6 +197,6 @@
       }
       return templates.map((template) => {
         const names = resolveTemplateExerciseNames({ template, fallbackNames, fallbackSingle: "Pull-ups" });
-        return mkBlock(mkExFromTargets(names, lastTargets), template.name);
+        return mkBlock(mkExFromTargets(names, lastTargets), template.name, template.id);
       });
     }

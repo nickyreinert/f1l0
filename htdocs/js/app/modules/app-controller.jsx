@@ -155,7 +155,69 @@
       const onBlkCollapse = (bi)         => commitBlocks(mutToggleCollapse(trainBlocks,bi));
       const onBlkSetStart = (bi,ts)      => commitBlocks(mutBlockStart(trainBlocks,bi,ts));
       const canAddBlock   = true;
-      const onAddBlock    = ()           => { if (!canAddBlock) return; commitBlocks(mutAddBlock(trainBlocks)); };
+      const onAddBlock    = ()           => {
+        if (!canAddBlock) return;
+
+        const prior = sessions.filter((s) => s.date < headerDate);
+        const plan = normalizeBlockPlan(blockPlan);
+        const activeTemplates = trainType === "A"
+          ? resolveActiveTemplates(plan.templates, prior)
+          : [];
+
+        if (!activeTemplates.length) {
+          commitBlocks(mutAddBlock(trainBlocks));
+          return;
+        }
+
+        const isBlockForTemplate = (block, template) => {
+          if (!block || !template) return false;
+          if (block.templateId && block.templateId === template.id) return true;
+          return String(block.label || "").trim().toLowerCase() === String(template.name || "").trim().toLowerCase();
+        };
+
+        const usageCount = (template) => trainBlocks.reduce((count, block) => count + (isBlockForTemplate(block, template) ? 1 : 0), 0);
+        const selectedTemplate = activeTemplates.reduce((best, template, idx) => {
+          const current = { template, idx, count: usageCount(template) };
+          if (!best) return current;
+          if (current.count < best.count) return current;
+          if (current.count === best.count && current.idx > best.idx) return current;
+          return best;
+        }, null)?.template;
+
+        if (!selectedTemplate) {
+          commitBlocks(mutAddBlock(trainBlocks));
+          return;
+        }
+
+        const sortedPrior = [...prior].sort((a, b) => b.date.localeCompare(a.date));
+        const lastMatchingBlock = (() => {
+          for (const s of sortedPrior) {
+            const blocks = sessionBlocks(migrateSession(s));
+            for (let i = blocks.length - 1; i >= 0; i -= 1) {
+              if (isBlockForTemplate(blocks[i], selectedTemplate)) return blocks[i];
+            }
+          }
+          return null;
+        })();
+
+        const makeSuggestedEx = (ex) => {
+          const reps = (Array.isArray(ex?.reps) ? ex.reps : []).filter((v) => typeof v === "number" && v > 0);
+          return { name: ex?.name || "Pull-ups", target: reps[0] || ex?.target || 10, reps, done: false };
+        };
+
+        const templateNames = resolveTemplateExerciseNames({
+          template: selectedTemplate,
+          fallbackNames: (lastMatchingBlock?.exercises || []).map((ex) => ex.name).filter(Boolean),
+          fallbackSingle: "Pull-ups",
+        });
+        const targets = lastTargetsFromSessions(prior, headerDate);
+        const newExercises = (lastMatchingBlock?.exercises || []).length
+          ? lastMatchingBlock.exercises.map(makeSuggestedEx)
+          : mkExFromTargets(templateNames, targets);
+
+        const newBlock = mkBlock(newExercises, selectedTemplate.name, selectedTemplate.id);
+        commitBlocks([...trainBlocks, newBlock]);
+      };
       const onDelBlock    = (bi)         => commitBlocks(mutDelBlock(trainBlocks,bi));
       const allCollapsed  = trainBlocks.length > 0 && trainBlocks.every(b => b.collapsed);
       const onToggleAllCollapse = () => commitBlocks(mutSetCollapseAll(trainBlocks, !allCollapsed));
