@@ -120,13 +120,15 @@
                             </div>
                           </div>
                           <div style={{ display:"grid", gridTemplateColumns:"repeat(7, 1fr)", gap:4, marginBottom:8 }}>
-                            {days.map(({ date, entry }) => (
+                            {days.map(({ date, entry }) => {
+                              const isActive = sessionCountsForHeatmap(entry);
+                              return (
                               <button key={date} onClick={() => setEditEntry(entry ? { ...entry } : mkSession(date, "A", []))}
-                                style={{ height:36, borderRadius:3, background: !entry ? "#1a1a1a" : entry.type==="A" ? "#1e4d08" : "#08304d", border:`1px solid ${!entry ? "#2a2a2a" : entry.type==="A" ? "#3a8a10" : "#1a6a9a"}`, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1, padding:0 }}>
-                                <span style={{ ...mono, fontSize:9, color: !entry ? "#666" : entry.type==="A" ? "#7acc20" : "#20aacc", lineHeight:1 }}>{date.slice(8)}</span>
-                                {entry && <span style={{ ...mono, fontSize:8, color:"#999", lineHeight:1 }}>{entry.type}</span>}
+                                style={{ height:36, borderRadius:3, background: !isActive ? "#1a1a1a" : entry.type==="A" ? "#1e4d08" : "#08304d", border:`1px solid ${!isActive ? "#2a2a2a" : entry.type==="A" ? "#3a8a10" : "#1a6a9a"}`, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1, padding:0 }}>
+                                <span style={{ ...mono, fontSize:9, color: !isActive ? "#666" : entry.type==="A" ? "#7acc20" : "#20aacc", lineHeight:1 }}>{date.slice(8)}</span>
+                                {isActive && <span style={{ ...mono, fontSize:8, color:"#999", lineHeight:1 }}>{entry.type}</span>}
                               </button>
-                            ))}
+                            )})}
                           </div>
                         </>;
                       })()}
