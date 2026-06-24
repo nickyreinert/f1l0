@@ -77,6 +77,46 @@
       return [fallbackSingle];
     }
 
+    function isBlockForTemplate(block, template) {
+      if (!block || !template) return false;
+      if (block.templateId && block.templateId === template.id) return true;
+      return String(block.label || "").trim().toLowerCase() === String(template.name || "").trim().toLowerCase();
+    }
+
+    function isCompletedBlock(block) {
+      if (!block) return false;
+      if (block.startedAt) return true;
+      const exercises = Array.isArray(block.exercises) ? block.exercises : [];
+      return exercises.length > 0 && exercises.every((ex) => ex?.done === true);
+    }
+
+    function cloneSuggestedExercises(exercises) {
+      return (exercises || []).map((ex) => {
+        const reps = (Array.isArray(ex?.reps) ? ex.reps : []).filter((v) => typeof v === "number" && v > 0);
+        return {
+          name: ex?.name || "Pull-ups",
+          target: reps[0] || ex?.target || 10,
+          reps: [...reps],
+          done: false,
+        };
+      });
+    }
+
+    function findLastMatchingBlock(priorSessions, template) {
+      const sortedPrior = [...(priorSessions || [])].sort((a, b) => b.date.localeCompare(a.date));
+      let fallbackMatch = null;
+      for (const session of sortedPrior) {
+        const blocks = sessionBlocks(migrateSession(session));
+        for (let idx = blocks.length - 1; idx >= 0; idx -= 1) {
+          const block = blocks[idx];
+          if (!isBlockForTemplate(block, template)) continue;
+          if (isCompletedBlock(block)) return block;
+          if (!fallbackMatch) fallbackMatch = block;
+        }
+      }
+      return fallbackMatch;
+    }
+
     // ─── BlockPlanEditor UI components ──────────────────────────────────────────
 
     // WHY: Isolated, draggable sub-component so each block-type row stays readable and reorderable.
@@ -196,6 +236,10 @@
         return [mkBlock(mkExFromTargets(names, lastTargets), "Training Block")];
       }
       return templates.map((template) => {
+        const lastMatchingBlock = findLastMatchingBlock(priorSessions, template);
+        if ((lastMatchingBlock?.exercises || []).length) {
+          return mkBlock(cloneSuggestedExercises(lastMatchingBlock.exercises), template.name, template.id);
+        }
         const names = resolveTemplateExerciseNames({ template, fallbackNames, fallbackSingle: "Pull-ups" });
         return mkBlock(mkExFromTargets(names, lastTargets), template.name, template.id);
       });

@@ -79,8 +79,12 @@
 
       const trainExs = Array.isArray(draft.exercises) ? draft.exercises : [];
       const mExs     = Array.isArray(draft.mornExercises) ? draft.mornExercises : [];
+      const trainBlocks = Array.isArray(draft.trainBlocks) && draft.trainBlocks.length
+        ? draft.trainBlocks
+        : (trainExs.length ? [mkBlock(trainExs, "Training")] : []);
       const setTrainExs = (v) => setDraft(prev => ({ ...prev, exercises: v }));
       const setMExs     = (v) => setDraft(prev => ({ ...prev, mornExercises: v }));
+      const setTrainBlocks = (v) => setDraft(prev => ({ ...prev, trainBlocks: v, exercises: flattenBlocks(v) }));
 
       return (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:3000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
@@ -97,8 +101,36 @@
             <div style={{ overflowY:"auto", padding:"16px 20px 32px", flex:1, minHeight:0 }}>
               <div style={{ ...mono, fontSize:11, color:"#666", marginBottom:8 }}>Separate reps per set with commas — e.g. <span style={{ color:"#999" }}>8, 7, 6</span> = 3 sets.</div>
               <HistoryExerciseEditor exs={mExs} setExs={setMExs} label="MORNING WORKOUT" lbl9={lbl9} mono={mono} BDR={BDR} />
-              <HistoryExerciseEditor exs={trainExs} setExs={setTrainExs} label="TRAINING" lbl9={lbl9} mono={mono} BDR={BDR} />
-              <button onClick={() => onSave({ ...draft, exercises: trainExs, mornExercises: mExs })} style={{ width:"100%", padding:14, background:ACC, color:BG, border:"none", borderRadius:4, cursor:"pointer", fontSize:14, fontWeight:900, letterSpacing:3, ...cond, marginTop:16 }}>SAVE</button>
+              {trainBlocks.length > 0 ? (
+                <>
+                  {trainBlocks.map((block, idx) => (
+                    <div key={block.id || idx} style={{ marginTop:16, paddingTop:8, borderTop: idx === 0 ? "none" : `1px solid ${BDR}` }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+                        <div style={{ ...lbl9 }}>{String(block.label || `TRAINING BLOCK ${idx + 1}`).toUpperCase()}</div>
+                        <button
+                          onClick={() => setTrainBlocks(trainBlocks.filter((_, blockIdx) => blockIdx !== idx))}
+                          style={{ background:"none", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:12, padding:"4px 8px" }}
+                        >REMOVE BLOCK</button>
+                      </div>
+                      <HistoryExerciseEditor
+                        exs={Array.isArray(block.exercises) ? block.exercises : []}
+                        setExs={(v) => setTrainBlocks(trainBlocks.map((item, blockIdx) => blockIdx !== idx ? item : { ...item, exercises: v }))}
+                        label="TRAINING"
+                        lbl9={lbl9}
+                        mono={mono}
+                        BDR={BDR}
+                      />
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setTrainBlocks([...trainBlocks, mkBlock([mkEx()], `Training Block ${trainBlocks.length + 1}`)])}
+                    style={{ width:"100%", padding:"6px 0", background:"transparent", border:`1px dashed ${BDR}`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:12, marginTop:8 }}
+                  >+ TRAINING BLOCK</button>
+                </>
+              ) : (
+                <HistoryExerciseEditor exs={trainExs} setExs={setTrainExs} label="TRAINING" lbl9={lbl9} mono={mono} BDR={BDR} />
+              )}
+              <button onClick={() => onSave({ ...draft, exercises: trainBlocks.length > 0 ? flattenBlocks(trainBlocks) : trainExs, trainBlocks: trainBlocks.length > 0 ? trainBlocks : undefined, mornExercises: mExs })} style={{ width:"100%", padding:14, background:ACC, color:BG, border:"none", borderRadius:4, cursor:"pointer", fontSize:14, fontWeight:900, letterSpacing:3, ...cond, marginTop:16 }}>SAVE</button>
             </div>
           </div>
         </div>

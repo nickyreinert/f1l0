@@ -29,6 +29,7 @@
       const [modalTarget, setModalTarget]   = useState(null); // { section: "train"|"morn", ei }
       const [recentEx, setRecentEx]         = useState([]);
       const [sessions, setSessions]         = useState([]);
+      const [draftTodaySession, setDraftTodaySession] = useState(null);
       const [customExercises, setCustomEx]  = useState([]);
       const [exerciseImages, setExerciseImages] = useState({});
       const [supplements, setSupplements]   = useState([]);
@@ -93,13 +94,14 @@
               ...mkSession(t, nt, defaults.exercises, defaults.mornExercises),
               trainBlocks: defaults.trainBlocks,
             };
-            const next = [...prior, today];
             // Only persist a freshly-created default session once the user has
             // actually interacted; persisting here would push a blank today over
-            // good cloud data before sync. Keep it in React state only for now.
-            setSessions(next);
+            // good cloud data before sync. Keep it out of history/stats until saved.
+            setSessions(all);
+            setDraftTodaySession(today);
           } else {
             setSessions(all);
+            setDraftTodaySession(null);
           }
 
             applySessionToState(today);
@@ -123,6 +125,7 @@
         const next = [...all.filter(s => s.date !== t), updated].sort((a,b) => a.date.localeCompare(b.date));
         await save("sessions", next);
         setSessions(next);
+        if (t === todayStr()) setDraftTodaySession(null);
         return updated;
       };
 
@@ -293,8 +296,11 @@
       const isViewingToday = headerDate === todayStr();
 
       const selectedSession = useMemo(() => {
-        return sessions.find(s => s.date === headerDate) || mkSession(headerDate, "A", [], []);
-      }, [sessions, headerDate]);
+        const persisted = sessions.find(s => s.date === headerDate);
+        if (persisted) return persisted;
+        if (headerDate === todayStr() && draftTodaySession?.date === headerDate) return draftTodaySession;
+        return mkSession(headerDate, "A", [], []);
+      }, [sessions, headerDate, draftTodaySession]);
 
       // WHY: Sync all UI state when user navigates to a different day in the history.
       useEffect(() => {
@@ -388,17 +394,22 @@
       const typeColor = trainType === "A" ? ACC : RED;
 
       const openHeaderDayEditor = () => {
-        const existing = sessions.find(s => s.date === headerDate);
+        const existing = sessions.find(s => s.date === headerDate)
+          || (isViewingToday && draftTodaySession?.date === headerDate ? draftTodaySession : null);
         setEditEntry(existing ? { ...existing } : mkSession(headerDate, "A", []));
       };
 
       const saveHistoryEntry = async (updated) => {
-        // WHY: Discard stale blocks so the edited flat list becomes the canonical source again.
-        const { trainBlocks: _drop, ...rest } = updated;
-        const migrated = { ...migrateSession(rest), updatedAt: Date.now() };
+        const migratedBase = migrateSession(updated);
+        const migrated = {
+          ...migratedBase,
+          exercises: Array.isArray(updated.trainBlocks) ? flattenBlocks(updated.trainBlocks) : migratedBase.exercises,
+          updatedAt: Date.now(),
+        };
         const next = [...sessions.filter(s => s.date !== migrated.date), migrated]
           .sort((a,b) => a.date.localeCompare(b.date));
         setSessions(next);
+        if (migrated.date === todayStr()) setDraftTodaySession(null);
         await save("sessions", next);
         if (migrated.date === headerDate) applySessionToState(migrated);
         setEditEntry(null);
