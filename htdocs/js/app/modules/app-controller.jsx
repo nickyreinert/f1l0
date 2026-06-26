@@ -162,17 +162,16 @@
       const onUncheckBlock= (bi)         => commitBlocks(mutUncheckBlock(trainBlocks,bi));
       const onBlkCollapse = (bi)         => commitBlocks(mutToggleCollapse(trainBlocks,bi));
       const onBlkSetStart = (bi,ts)      => commitBlocks(mutBlockStart(trainBlocks,bi,ts));
-      const canAddBlock   = true;
+      const canAddBlock   = trainType === "A" || normalizeBlockPlan(blockPlan).templates.some((t) => Math.max(1, t.cadenceEvery) === 1);
       const onAddBlock    = ()           => {
         if (!canAddBlock) return;
 
         const prior = sessions.filter((s) => s.date < headerDate);
         const plan = normalizeBlockPlan(blockPlan);
-        const activeTemplates = trainType === "A"
-          ? resolveActiveTemplates(plan.templates, prior)
-          : [];
+        const activeTemplates = resolveActiveTemplates(plan.templates, prior, { dailyOnly: trainType === "B" });
 
         if (!activeTemplates.length) {
+          if (trainType === "B") return;
           commitBlocks(mutAddBlock(trainBlocks));
           return;
         }
@@ -262,10 +261,11 @@
         // Apply name + historical reps suggestion (only if exercise not yet done today)
         const applyEx = (ex) => {
           const base = { ...ex, name: exName };
-          if (!ex.done && lastReps && lastReps.length) {
-            return { ...base, target: lastReps[0], reps: lastReps };
+          const hasEnteredReps = (Array.isArray(ex.reps) ? ex.reps : []).some((v) => typeof v === "number" && v > 0);
+          if (!ex.done && !hasEnteredReps && lastReps && lastReps.length) {
+            return { ...base, target: lastReps[0], reps: [], suggestedReps: lastReps };
           }
-          return base;
+          return { ...base, suggestedReps: [] };
         };
 
         if (section === "morn") {
@@ -395,7 +395,21 @@
       const openHeaderDayEditor = () => {
         const existing = sessions.find(s => s.date === headerDate)
           || (isViewingToday && draftTodaySession?.date === headerDate ? draftTodaySession : null);
-        setEditEntry(existing ? { ...existing } : mkSession(headerDate, "A", []));
+        if (!existing) {
+          setEditEntry(mkSession(headerDate, "A", []));
+          return;
+        }
+        const prior = sessions.filter((s) => s.date < headerDate);
+        const normalizedBlocks = syncPlannedBlocksFromPlan(
+          sessionBlocks(migrateSession(existing)),
+          blockPlan,
+          lastTargetsFromSessions(prior, headerDate)
+        );
+        setEditEntry({
+          ...existing,
+          trainBlocks: normalizedBlocks,
+          exercises: flattenBlocks(normalizedBlocks),
+        });
       };
 
       const saveHistoryEntry = async (updated) => {

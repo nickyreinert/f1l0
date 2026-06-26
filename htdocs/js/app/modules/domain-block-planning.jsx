@@ -57,9 +57,13 @@
 
     // WHY: Each block-type recurs on its own "every Nth training day" cadence, independent of the others.
     //      Cadence counts real training days (type A), so a rest day pauses — never desyncs — the count.
-    function resolveActiveTemplates(templates, priorSessions) {
+    function resolveActiveTemplates(templates, priorSessions, opts = {}) {
       const trainIndex = (priorSessions || []).filter((s) => (s?.type || "A") === "A").length;
-      return (templates || []).filter((t) => trainIndex % Math.max(1, t.cadenceEvery) === 0);
+      return (templates || []).filter((t) => {
+        const cadenceEvery = Math.max(1, t.cadenceEvery);
+        if (opts.dailyOnly) return cadenceEvery === 1;
+        return trainIndex % cadenceEvery === 0;
+      });
     }
 
     // WHY: A day is rest only when the global cap forces it; otherwise it is a training (rotation) day.
@@ -103,7 +107,8 @@
         return {
           name: ex?.name || "Pull-ups",
           target: reps[0] || ex?.target || 10,
-          reps: [...reps],
+          reps: [],
+          suggestedReps: reps,
           done: false,
         };
       });
@@ -152,7 +157,15 @@
         const plannedNames = normalizeExerciseNames(template.exerciseNames);
         const sameExercises = currentNames.length === plannedNames.length
           && plannedNames.every((name, idx) => name === currentNames[idx]);
-        if (sameExercises) return block;
+        if (sameExercises) {
+          const hasRecordedState = block.startedAt || (block.exercises || []).some((ex) => ex?.done === true);
+          if (hasRecordedState) return block;
+          return {
+            ...block,
+            label: template.name,
+            exercises: mkExFromTargets(plannedNames, lastTargets || {}),
+          };
+        }
         return {
           ...block,
           label: template.name,
@@ -331,9 +344,7 @@
     function buildDefaultDayPayload({ date, priorSessions, dayType, lastTargets, plan }) {
       const normalized = normalizeBlockPlan(plan);
       const past = (priorSessions || []).filter((s) => s.date < date);
-      const activeTemplates = dayType === "B"
-        ? []
-        : resolveActiveTemplates(normalized.templates, past);
+      const activeTemplates = resolveActiveTemplates(normalized.templates, past, { dailyOnly: dayType === "B" });
       const lastTraining = [...priorSessions].reverse().find((s) => s.type === "A");
       const lastTrainNames = (lastTraining?.exercises || []).map((e) => e.name);
 

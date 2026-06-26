@@ -116,6 +116,8 @@
         confirmRep(v);
         if (onRepAdded) onRepAdded();
       };
+      const suggestedReps = (Array.isArray(ex.suggestedReps) ? ex.suggestedReps : []).filter(v => typeof v === "number" && v > 0);
+      const showSuggestions = !ex.reps.length && suggestedReps.length > 0;
 
       return (
         <div style={{ marginBottom:18 }}>
@@ -129,6 +131,17 @@
           <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", opacity: ex.done ? 1 : 0.4 }}>
             {ex.reps.map((v,i) => (
               <RepTile key={i} value={v} disabled={disabled} onClick={() => openDial(i)} />
+            ))}
+            {showSuggestions && suggestedReps.map((v,i) => (
+              <button key={`suggested_${i}`} disabled title="Suggested from last session" style={{
+                width:54, height:54, borderRadius:4, flexShrink:0,
+                border:`2px dashed #4a5f18`,
+                background:"#0b1200",
+                color:"#6f8d18",
+                ...mono, fontWeight:700, fontSize:20,
+                cursor:"default",
+                opacity:0.75,
+              }}>{v}</button>
             ))}
             <AddTile onClick={openNewDial} />
           </div>

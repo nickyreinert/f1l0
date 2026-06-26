@@ -101,13 +101,19 @@
           {/* ── Training ── */}
           <div style={{ padding:"20px 20px 0" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-              {trainType === "A" && trainBlocks.length > 1 && (
+              {trainBlocks.length > 1 && (
                 <button onClick={onToggleAllCollapse} style={{ background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:4, cursor:"pointer", padding:"8px 14px", fontSize:14, letterSpacing:2, ...cond, fontWeight:700 }}>
                   {allCollapsed ? "EXPAND ALL" : "COLLAPSE ALL"}
                 </button>
               )}
             </div>
-            {trainType === "A" && <>
+            {trainType === "B" && trainBlocks.length > 0 && (
+              <div style={{ background:"#101510", border:`1px solid #263a26`, borderRadius:6, padding:"12px 14px", marginBottom:12 }}>
+                <div style={{ fontSize:16, color:ACC, letterSpacing:3, marginBottom:4 }}>RECOVERY DAY</div>
+                <div style={{ fontSize:18, color:"#aaa", lineHeight:1.5 }}>Only daily blocks are scheduled today. Spaced training blocks are held back.</div>
+              </div>
+            )}
+            {trainBlocks.length > 0 && <>
               {trainBlocks.map((block, bi) => (
                 <BlockCard
                   key={block.id}
@@ -145,10 +151,10 @@
                 );
               })()}
             </>}
-            {trainType === "B" && (
+            {trainType === "B" && trainBlocks.length === 0 && (
               <div style={{ background:CARD, border:`1px solid ${BDR}`, borderRadius:6, padding:20, marginBottom:12 }}>
                 <div style={{ fontSize:18, color:RED, letterSpacing:4, marginBottom:12 }}>REST DAY — NO TRAINING</div>
-                <div style={{ fontSize:20, color:"#aaa", lineHeight:1.7 }}>Tendons and nervous system repair micro-injuries. No pull-ups, not even briefly.</div>
+                <div style={{ fontSize:20, color:"#aaa", lineHeight:1.7 }}>Spaced training blocks are held back today. No scheduled daily blocks are due.</div>
                 <div style={{ marginTop:20, paddingTop:16, borderTop:`1px solid ${BDR}`, display:"flex", alignItems:"center", gap:10 }}>
                   <div style={{ width:8, height:8, borderRadius:"50%", background:"#2c6e35", flexShrink:0 }} />
                   <span style={{ fontSize:18, color:"#888", letterSpacing:1 }}>Cycling &amp; cardio allowed</span>

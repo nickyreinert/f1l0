@@ -245,8 +245,7 @@
       return (exNames || []).map(name => {
         const prev = lt[name];
         const reps = Array.isArray(prev) && prev.length ? prev : [];
-        // Pre-filled reps are suggestions from the last session; not yet done today.
-        return { name, target: reps[0] || 10, reps, done: false };
+        return { name, target: reps[0] || 10, reps: [], suggestedReps: reps, done: false };
       });
     }
 
@@ -262,7 +261,13 @@
     const mutDelRep = (E,ei,si)   => E.map((ex,k)=>k!==ei?ex:{...ex,reps:ex.reps.filter((_,l)=>l!==si)});
     const mutAddEx  = (E)         => [...E, mkEx()];
     const mutDelEx  = (E,ei)      => E.filter((_,k)=>k!==ei);
-    const mutAddRep = (E,ei)      => E.map((ex,k)=>k!==ei?ex:{...ex,reps:[...ex.reps, ex.reps.length>0 ? ex.reps[ex.reps.length-1] : ex.target]});
+    const mutAddRep = (E,ei)      => E.map((ex,k)=> {
+      if (k !== ei) return ex;
+      const suggested = (Array.isArray(ex.suggestedReps) ? ex.suggestedReps : []).filter(v => typeof v === 'number' && v > 0);
+      const reps = Array.isArray(ex.reps) ? ex.reps : [];
+      const next = suggested[reps.length] || (reps.length>0 ? reps[reps.length-1] : ex.target);
+      return {...ex,reps:[...reps, next]};
+    });
     const mutName   = (E,ei,n)    => E.map((ex,k)=>k!==ei?ex:{...ex,name:n});
     const mutToggleDone = (E,ei)  => E.map((ex,k)=>k!==ei?ex:{...ex,done:!ex.done});
     const mutTarget = (E,ei,d)    => E.map((ex,k)=>k!==ei?ex:{...ex,target:Math.max(1,ex.target+d)});
@@ -277,4 +282,3 @@
     const mutBlockStart = (B,bi,ts) => B.map((b,k)=>k!==bi?b:{...b,startedAt:ts});
     const mutAddBlock = (B)         => [...B, mkBlock()];
     const mutDelBlock = (B,bi)      => B.filter((_,k)=>k!==bi);
-
