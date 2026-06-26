@@ -83,6 +83,13 @@
           }
         };
 
+        const updateBlockPlanSetting = (nextPlan) => {
+          const bp = normalizeBlockPlan(nextPlan);
+          setTmpBlockPlan(bp);
+          setBlockPlan(bp);
+          load("cfg").then(cfg => save("cfg", { ...(cfg||{}), blockPlan: bp }));
+        };
+
         const KPI = ({ label, val, unit, large }) => (
           <div style={{ background:"#0a0a0a", border:`1px solid ${BDR}`, borderRadius:6, padding:"14px 12px" }}>
             <div style={{ ...lbl9, marginBottom:6 }}>{label}</div>
@@ -183,7 +190,15 @@
                   <div style={{ background:"#0c0f14", border:`1px solid #1d2b34`, borderRadius:8, padding:"14px 14px 10px", marginBottom:14 }}>
                     <div style={{ ...lbl9, marginBottom:6, fontSize:14, color:"#9ed5ff" }}>BLOCK SETUP</div>
                     <div style={{ ...mono, fontSize:14, color:"#6f8ea3", marginBottom:12 }}>Define your blocks and their pause cadence.</div>
-                    <BlockPlanEditor plan={tmpBlockPlan} onChange={setTmpBlockPlan} />
+                    <BlockPlanEditor
+                      plan={tmpBlockPlan}
+                      onChange={updateBlockPlanSetting}
+                      recentlyUsed={recentEx}
+                      customExercises={customExercises}
+                      onAddCustom={addCustomExercise}
+                      exerciseImages={exerciseImages}
+                      onImageUpdate={updateExerciseImage}
+                    />
                   </div>
 
                   <div style={{ background:"#10100d", border:`1px solid #2c2a1a`, borderRadius:8, padding:"14px 14px 12px", marginBottom:14 }}>

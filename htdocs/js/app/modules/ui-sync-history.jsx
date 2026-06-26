@@ -36,12 +36,12 @@
       );
     }
 
-    function HistoryExerciseEditor({ exs, setExs, label, lbl9, mono, BDR }) {
+    function HistoryExerciseEditor({ exs, setExs, label, addLabel, lbl9, mono, BDR }) {
       const rowStyle = { display:"grid", gridTemplateColumns:"1fr 110px 28px", gap:6, alignItems:"center", marginBottom:6 };
       const parseReps = (str) => String(str).split(/[\s,]+/).map(s => parseInt(s,10)).filter(n => Number.isFinite(n) && n > 0);
+      const addText = addLabel || label;
       return (
         <>
-          <div style={{ ...lbl9, marginBottom:8, marginTop:16 }}>{label}</div>
           <div style={{ ...rowStyle, marginBottom:4 }}>
             <div style={{ ...mono, fontSize:11, color:"#888" }}>EXERCISE</div>
             <div style={{ ...mono, fontSize:11, color:"#888", textAlign:"center" }}>REPS / SET</div>
@@ -63,7 +63,7 @@
               <button onClick={() => setExs(exs.filter((_,j)=>j!==i))} style={{ background:"none", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:14, height:30, width:28, lineHeight:1 }}>×</button>
             </div>
           ))}
-          <button onClick={() => setExs([...exs, {name:"",target:10,reps:[]}])} style={{ width:"100%", padding:"6px 0", background:"transparent", border:`1px dashed ${BDR}`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:12, marginBottom:4 }}>+ {label}</button>
+          <button onClick={() => setExs([...exs, {name:"",target:10,reps:[]}])} style={{ width:"100%", padding:"6px 0", background:"transparent", border:`1px dashed ${BDR}`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:12, marginBottom:4 }}>+ {addText}</button>
         </>
       );
     }
@@ -100,7 +100,9 @@
             </div>
             <div style={{ overflowY:"auto", padding:"16px 20px 32px", flex:1, minHeight:0 }}>
               <div style={{ ...mono, fontSize:11, color:"#666", marginBottom:8 }}>Separate reps per set with commas — e.g. <span style={{ color:"#999" }}>8, 7, 6</span> = 3 sets.</div>
-              <HistoryExerciseEditor exs={mExs} setExs={setMExs} label="MORNING WORKOUT" lbl9={lbl9} mono={mono} BDR={BDR} />
+              {mExs.length > 0 && (
+                <HistoryExerciseEditor exs={mExs} setExs={setMExs} label="MORNING WORKOUT" addLabel="EXERCISE" lbl9={lbl9} mono={mono} BDR={BDR} />
+              )}
               {trainBlocks.length > 0 ? (
                 <>
                   {trainBlocks.map((block, idx) => (
@@ -115,7 +117,8 @@
                       <HistoryExerciseEditor
                         exs={Array.isArray(block.exercises) ? block.exercises : []}
                         setExs={(v) => setTrainBlocks(trainBlocks.map((item, blockIdx) => blockIdx !== idx ? item : { ...item, exercises: v }))}
-                        label="TRAINING"
+                        label="EXERCISES"
+                        addLabel="EXERCISE"
                         lbl9={lbl9}
                         mono={mono}
                         BDR={BDR}
@@ -125,10 +128,10 @@
                   <button
                     onClick={() => setTrainBlocks([...trainBlocks, mkBlock([mkEx()], `Training Block ${trainBlocks.length + 1}`)])}
                     style={{ width:"100%", padding:"6px 0", background:"transparent", border:`1px dashed ${BDR}`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:12, marginTop:8 }}
-                  >+ TRAINING BLOCK</button>
+                  >+ BLOCK</button>
                 </>
               ) : (
-                <HistoryExerciseEditor exs={trainExs} setExs={setTrainExs} label="TRAINING" lbl9={lbl9} mono={mono} BDR={BDR} />
+                <HistoryExerciseEditor exs={trainExs} setExs={setTrainExs} label="TRAINING" addLabel="EXERCISE" lbl9={lbl9} mono={mono} BDR={BDR} />
               )}
               <button onClick={() => onSave({ ...draft, exercises: trainBlocks.length > 0 ? flattenBlocks(trainBlocks) : trainExs, trainBlocks: trainBlocks.length > 0 ? trainBlocks : undefined, mornExercises: mExs })} style={{ width:"100%", padding:14, background:ACC, color:BG, border:"none", borderRadius:4, cursor:"pointer", fontSize:14, fontWeight:900, letterSpacing:3, ...cond, marginTop:16 }}>SAVE</button>
             </div>
@@ -136,4 +139,3 @@
         </div>
       );
     }
-

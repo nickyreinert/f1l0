@@ -101,7 +101,6 @@
           {/* ── Training ── */}
           <div style={{ padding:"20px 20px 0" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-              <div style={{ fontSize:36, fontWeight:900, letterSpacing:1, color: typeColor }}>TRAINING</div>
               {trainType === "A" && trainBlocks.length > 1 && (
                 <button onClick={onToggleAllCollapse} style={{ background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:4, cursor:"pointer", padding:"8px 14px", fontSize:14, letterSpacing:2, ...cond, fontWeight:700 }}>
                   {allCollapsed ? "EXPAND ALL" : "COLLAPSE ALL"}

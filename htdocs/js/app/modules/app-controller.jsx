@@ -40,9 +40,14 @@
       const suppDragRef = useRef({ fromIdx: null });
 
       // WHY: Extracted to avoid duplicating 9 setters in both initApp and selectedSession effect.
-      const applySessionToState = (today) => {
+      const applySessionToState = (today, planForLabels = blockPlan, priorForTargets = sessions) => {
         setTrainType(today.type);
-        const blocks = sessionBlocks(today);
+        const targetHistory = (priorForTargets || []).filter((s) => s.date < today.date);
+        const blocks = syncPlannedBlocksFromPlan(
+          sessionBlocks(today),
+          planForLabels,
+          lastTargetsFromSessions(targetHistory, today.date)
+        );
         setTrainBlocks(blocks);
         setExercises(flattenBlocks(blocks));
         setTrainSupps(today.supps ?? mkSup());
@@ -104,7 +109,7 @@
             setDraftTodaySession(null);
           }
 
-            applySessionToState(today);
+            applySessionToState(today, bp, prior);
           setReady(true);
       }, []);  // WHY: applySessionToState is stable (only closes over state setters)
 
@@ -203,20 +208,14 @@
           return null;
         })();
 
-        const makeSuggestedEx = (ex) => {
-          const reps = (Array.isArray(ex?.reps) ? ex.reps : []).filter((v) => typeof v === "number" && v > 0);
-          return { name: ex?.name || "Pull-ups", target: reps[0] || ex?.target || 10, reps, done: false };
-        };
-
-        const templateNames = resolveTemplateExerciseNames({
+        const targets = lastTargetsFromSessions(prior, headerDate);
+        const newExercises = buildTemplateExercises({
           template: selectedTemplate,
           fallbackNames: (lastMatchingBlock?.exercises || []).map((ex) => ex.name).filter(Boolean),
           fallbackSingle: "Pull-ups",
+          lastTargets: targets,
+          lastMatchingBlock,
         });
-        const targets = lastTargetsFromSessions(prior, headerDate);
-        const newExercises = (lastMatchingBlock?.exercises || []).length
-          ? lastMatchingBlock.exercises.map(makeSuggestedEx)
-          : mkExFromTargets(templateNames, targets);
 
         const newBlock = mkBlock(newExercises, selectedTemplate.name, selectedTemplate.id);
         commitBlocks([...trainBlocks, newBlock]);
@@ -304,8 +303,8 @@
 
       // WHY: Sync all UI state when user navigates to a different day in the history.
       useEffect(() => {
-        applySessionToState(migrateSession(selectedSession));
-      }, [selectedSession]);
+        applySessionToState(migrateSession(selectedSession), blockPlan);
+      }, [selectedSession, blockPlan]);
 
       const completeMorning = async () => {
         if (mornDone || !isViewingToday) return;
@@ -411,7 +410,6 @@
         setSessions(next);
         if (migrated.date === todayStr()) setDraftTodaySession(null);
         await save("sessions", next);
-        if (migrated.date === headerDate) applySessionToState(migrated);
+        if (migrated.date === headerDate) applySessionToState(migrated, blockPlan);
         setEditEntry(null);
       };
-

@@ -25,13 +25,20 @@
     function normalizeTemplate(template) {
       if (!template || typeof template !== "object") return null;
       const cadenceEvery = Math.max(1, parseInt(template.cadenceEvery || 1, 10) || 1);
-      const exerciseNames = Array.isArray(template.exerciseNames) ? template.exerciseNames.filter(Boolean) : [];
+      const exerciseNames = normalizeExerciseNames(template.exerciseNames);
       return {
         id: String(template.id || `block_${Date.now()}`),
         name: String(template.name || "Block"),
         cadenceEvery,
         exerciseNames,
       };
+    }
+
+    function normalizeExerciseNames(names) {
+      if (!Array.isArray(names)) return [];
+      return names
+        .map((name) => String(name || "").trim())
+        .filter(Boolean);
     }
 
     // WHY: Block-types are independent; just keep the valid ones (no day-slot remapping).
@@ -102,6 +109,58 @@
       });
     }
 
+    function buildTemplateExercises({ template, fallbackNames, fallbackSingle, lastTargets, lastMatchingBlock }) {
+      const hasConfiguredNames = template?.exerciseNames?.length > 0;
+      if (hasConfiguredNames) {
+        return mkExFromTargets(template.exerciseNames, lastTargets || {});
+      }
+      if ((lastMatchingBlock?.exercises || []).length) {
+        return cloneSuggestedExercises(lastMatchingBlock.exercises);
+      }
+      const names = resolveTemplateExerciseNames({ template, fallbackNames, fallbackSingle });
+      return mkExFromTargets(names, lastTargets || {});
+    }
+
+    function namesMatchTemplate(block, template) {
+      const blockNames = normalizeExerciseNames((block?.exercises || []).map((ex) => ex?.name));
+      const templateNames = normalizeExerciseNames(template?.exerciseNames);
+      return templateNames.length > 0
+        && blockNames.length === templateNames.length
+        && templateNames.every((name, idx) => name === blockNames[idx]);
+    }
+
+    function labelBlocksFromPlan(blocks, plan) {
+      const templates = normalizeBlockPlan(plan).templates;
+      return (blocks || []).map((block) => {
+        const match = templates.find((template) => (
+          (block?.templateId && block.templateId === template.id) || namesMatchTemplate(block, template)
+        ));
+        if (!match) return block;
+        return { ...block, label: match.name, templateId: block.templateId || match.id };
+      });
+    }
+
+    function syncPlannedBlocksFromPlan(blocks, plan, lastTargets) {
+      const templates = normalizeBlockPlan(plan).templates;
+      return labelBlocksFromPlan(blocks, plan).filter((block) => {
+        if (!block?.templateId || isCompletedBlock(block)) return true;
+        return templates.some((template) => template.id === block.templateId);
+      }).map((block) => {
+        const template = templates.find((t) => block?.templateId && block.templateId === t.id);
+        if (!template || isCompletedBlock(block) || !template.exerciseNames?.length) return block;
+        const currentNames = normalizeExerciseNames((block.exercises || []).map((ex) => ex?.name));
+        const plannedNames = normalizeExerciseNames(template.exerciseNames);
+        const sameExercises = currentNames.length === plannedNames.length
+          && plannedNames.every((name, idx) => name === currentNames[idx]);
+        if (sameExercises) return block;
+        return {
+          ...block,
+          label: template.name,
+          exercises: mkExFromTargets(plannedNames, lastTargets || {}),
+        };
+      });
+    }
+
     function findLastMatchingBlock(priorSessions, template) {
       const sortedPrior = [...(priorSessions || [])].sort((a, b) => b.date.localeCompare(a.date));
       let fallbackMatch = null;
@@ -119,8 +178,28 @@
 
     // ─── BlockPlanEditor UI components ──────────────────────────────────────────
 
-    // WHY: Isolated, draggable sub-component so each block-type row stays readable and reorderable.
-    function TemplateRow({ template, onChange, onRemove, canRemove }) {
+    function TemplateExerciseEditor({ exerciseNames, onPick, onRemove }) {
+      const names = normalizeExerciseNames(exerciseNames);
+
+      return (
+        <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid #20303e` }}>
+          <div style={{ ...lbl9, fontSize:12, color:"#8eb0c8", marginBottom:8 }}>EXERCISES</div>
+          {names.map((name, idx) => (
+            <div key={idx} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
+              <button
+                onClick={() => onPick(idx)}
+                style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"9px 10px", borderRadius:3, cursor:"pointer", fontSize:16, textAlign:"left", boxSizing:"border-box", ...cond, fontWeight:700 }}
+              >{name}</button>
+              <button onClick={() => onRemove(idx)} title="Remove exercise" style={{ width:36, height:36, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1 }}>×</button>
+            </div>
+          ))}
+          <button onClick={() => onPick(null)} style={{ width:"100%", padding:10, background:"#0b1118", border:`1px dashed #2a3a4a`, color:"#8eb0c8", borderRadius:4, cursor:"pointer", fontSize:15, ...cond }}>+ ADD EXERCISE</button>
+        </div>
+      );
+    }
+
+    // WHY: Isolated sub-component so each block-type row stays readable.
+    function TemplateRow({ template, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise }) {
       const ordinal = (n) => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
       return (
         <div
@@ -141,6 +220,11 @@
           {template.cadenceEvery > 1
             ? <div style={{ ...mono, fontSize:12, color:"#8d8d8d", marginTop:6 }}>Active on every {ordinal(template.cadenceEvery)} training day.</div>
             : <div style={{ ...mono, fontSize:12, color:"#8d8d8d", marginTop:6 }}>Active on every training day.</div>}
+          <TemplateExerciseEditor
+            exerciseNames={template.exerciseNames}
+            onPick={(exerciseIdx) => onPickExercise(template.id, exerciseIdx)}
+            onRemove={(exerciseIdx) => onRemoveExercise(template.id, exerciseIdx)}
+          />
         </div>
       );
     }
@@ -184,7 +268,8 @@
     }
 
     // WHY: Top-level editor lists independent block-types, each with its own recurrence cadence.
-    function BlockPlanEditor({ plan, onChange }) {
+    function BlockPlanEditor({ plan, onChange, recentlyUsed, customExercises, onAddCustom, exerciseImages, onImageUpdate }) {
+      const [exercisePicker, setExercisePicker] = useState(null);
       const emitPlan = (next) => onChange(normalizeBlockPlan(next));
       const updateTemplate = (id, patch) => {
         const updated = plan.templates.map((t) => t.id !== id ? t : normalizeTemplate({ ...t, ...patch }));
@@ -196,6 +281,24 @@
       };
       const removeTemplate = (id) => emitPlan({ ...plan, templates: plan.templates.filter((t) => t.id !== id) });
       const updateRestCap = (patch) => emitPlan({ ...plan, restCap: { ...plan.restCap, ...patch } });
+      const removeTemplateExercise = (templateId, exerciseIdx) => {
+        const template = plan.templates.find((t) => t.id === templateId);
+        if (!template) return;
+        updateTemplate(templateId, {
+          exerciseNames: normalizeExerciseNames(template.exerciseNames).filter((_, idx) => idx !== exerciseIdx),
+        });
+      };
+      const selectTemplateExercise = (exerciseName) => {
+        if (!exercisePicker) return;
+        const template = plan.templates.find((t) => t.id === exercisePicker.templateId);
+        if (!template) return;
+        const names = normalizeExerciseNames(template.exerciseNames);
+        const next = exercisePicker.exerciseIdx === null
+          ? [...names, exerciseName]
+          : names.map((name, idx) => idx === exercisePicker.exerciseIdx ? exerciseName : name);
+        updateTemplate(template.id, { exerciseNames: next });
+        setExercisePicker(null);
+      };
 
       return (
         <div>
@@ -203,11 +306,23 @@
             <TemplateRow key={t.id} template={t}
               onChange={(p) => updateTemplate(t.id, p)}
               onRemove={() => removeTemplate(t.id)}
-              canRemove={plan.templates.length > 1} />
+              canRemove={plan.templates.length > 1}
+              onPickExercise={(templateId, exerciseIdx) => setExercisePicker({ templateId, exerciseIdx })}
+              onRemoveExercise={removeTemplateExercise} />
           ))}
           <button onClick={addTemplate} style={{ width:"100%", padding:12, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:17, ...cond, marginBottom:4 }}>+ ADD BLOCK TYPE</button>
           <div style={{ ...mono, fontSize:12, color:"#666", marginBottom:4 }}>Each block type appears on its own schedule (e.g. every day, every 2nd day).</div>
           <RestCapEditor cap={plan.restCap} onChange={updateRestCap} />
+          <ExerciseModal
+            open={!!exercisePicker}
+            onClose={() => setExercisePicker(null)}
+            onSelect={selectTemplateExercise}
+            recentlyUsed={recentlyUsed || []}
+            customExercises={customExercises || []}
+            onAddCustom={onAddCustom || (() => {})}
+            exerciseImages={exerciseImages || {}}
+            onImageUpdate={onImageUpdate || (() => {})}
+          />
         </div>
       );
     }
@@ -237,10 +352,13 @@
       }
       return templates.map((template) => {
         const lastMatchingBlock = findLastMatchingBlock(priorSessions, template);
-        if ((lastMatchingBlock?.exercises || []).length) {
-          return mkBlock(cloneSuggestedExercises(lastMatchingBlock.exercises), template.name, template.id);
-        }
-        const names = resolveTemplateExerciseNames({ template, fallbackNames, fallbackSingle: "Pull-ups" });
-        return mkBlock(mkExFromTargets(names, lastTargets), template.name, template.id);
+        const exercises = buildTemplateExercises({
+          template,
+          fallbackNames,
+          fallbackSingle: "Pull-ups",
+          lastTargets,
+          lastMatchingBlock,
+        });
+        return mkBlock(exercises, template.name, template.id);
       });
     }
