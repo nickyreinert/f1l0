@@ -43,11 +43,16 @@
       const applySessionToState = (today, planForLabels = blockPlan, priorForTargets = sessions) => {
         setTrainType(today.type);
         const targetHistory = (priorForTargets || []).filter((s) => s.date < today.date);
-        const blocks = syncPlannedBlocksFromPlan(
-          sessionBlocks(today),
-          planForLabels,
-          lastTargetsFromSessions(targetHistory, today.date)
-        );
+        const lastTraining = [...targetHistory].reverse().find((s) => s.type === "A");
+        const blocks = syncOfferedBlocksFromPlan({
+          blocks: sessionBlocks(today),
+          plan: planForLabels,
+          priorSessions: targetHistory,
+          dayType: today.type,
+          lastTargets: lastTargetsFromSessions(targetHistory, today.date),
+          fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
+          replaceGeneric: today.date >= todayStr(),
+        });
         setTrainBlocks(blocks);
         setExercises(flattenBlocks(blocks));
         setTrainSupps(today.supps ?? mkSup());
@@ -400,11 +405,16 @@
           return;
         }
         const prior = sessions.filter((s) => s.date < headerDate);
-        const normalizedBlocks = syncPlannedBlocksFromPlan(
-          sessionBlocks(migrateSession(existing)),
-          blockPlan,
-          lastTargetsFromSessions(prior, headerDate)
-        );
+        const lastTraining = [...prior].reverse().find((s) => s.type === "A");
+        const normalizedBlocks = syncOfferedBlocksFromPlan({
+          blocks: sessionBlocks(migrateSession(existing)),
+          plan: blockPlan,
+          priorSessions: prior,
+          dayType: existing.type || "A",
+          lastTargets: lastTargetsFromSessions(prior, headerDate),
+          fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
+          replaceGeneric: headerDate >= todayStr(),
+        });
         setEditEntry({
           ...existing,
           trainBlocks: normalizedBlocks,

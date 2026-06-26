@@ -174,6 +174,31 @@
       });
     }
 
+    function isUnstartedGenericBlock(block) {
+      if (!block || block.templateId || block.label || block.startedAt) return false;
+      return !(block.exercises || []).some((ex) => ex?.done === true);
+    }
+
+    function syncOfferedBlocksFromPlan({ blocks, plan, priorSessions, dayType, lastTargets, fallbackNames, replaceGeneric }) {
+      const normalized = normalizeBlockPlan(plan);
+      const synced = syncPlannedBlocksFromPlan(blocks, normalized, lastTargets);
+      const activeTemplates = resolveActiveTemplates(normalized.templates, priorSessions || [], { dailyOnly: dayType === "B" });
+      const presentTemplateIds = new Set(synced.map((block) => block?.templateId).filter(Boolean));
+      const missingTemplates = activeTemplates.filter((template) => !presentTemplateIds.has(template.id));
+      if (!missingTemplates.length) return synced;
+
+      const hasReplaceableGeneric = replaceGeneric && synced.some(isUnstartedGenericBlock);
+      if (!hasReplaceableGeneric && synced.length > 0) return synced;
+
+      const retained = hasReplaceableGeneric
+        ? synced.filter((block) => !isUnstartedGenericBlock(block))
+        : synced;
+      return [
+        ...retained,
+        ...buildTrainingBlocks(missingTemplates, fallbackNames || [], lastTargets || {}, priorSessions || []),
+      ];
+    }
+
     function findLastMatchingBlock(priorSessions, template) {
       const sortedPrior = [...(priorSessions || [])].sort((a, b) => b.date.localeCompare(a.date));
       let fallbackMatch = null;
