@@ -167,13 +167,13 @@
       const onUncheckBlock= (bi)         => commitBlocks(mutUncheckBlock(trainBlocks,bi));
       const onBlkCollapse = (bi)         => commitBlocks(mutToggleCollapse(trainBlocks,bi));
       const onBlkSetStart = (bi,ts)      => commitBlocks(mutBlockStart(trainBlocks,bi,ts));
-      const canAddBlock   = trainType === "A" || normalizeBlockPlan(blockPlan).templates.some((t) => Math.max(1, t.cadenceEvery) === 1);
+      const canAddBlock   = trainType === "A" || normalizeBlockPlan(blockPlan).templates.some((t) => t.schedule === "always");
       const onAddBlock    = ()           => {
         if (!canAddBlock) return;
 
         const prior = sessions.filter((s) => s.date < headerDate);
         const plan = normalizeBlockPlan(blockPlan);
-        const activeTemplates = resolveActiveTemplates(plan.templates, prior, { dailyOnly: trainType === "B" });
+        const activeTemplates = resolveActiveTemplates(plan.templates, prior, { dailyOnly: trainType === "B", routine: plan.routine });
 
         if (!activeTemplates.length) {
           if (trainType === "B") return;
@@ -396,6 +396,15 @@
       };
 
       const typeColor = trainType === "A" ? ACC : RED;
+      const headerPriorSessions = useMemo(
+        () => sessions.filter((s) => s.date < headerDate),
+        [sessions, headerDate]
+      );
+      const headerRoutineDay = resolveRoutineDay(normalizeBlockPlan(blockPlan).routine, headerPriorSessions);
+      const headerHasDailyBlocks = trainBlocks.some((block) => {
+        const template = normalizeBlockPlan(blockPlan).templates.find((t) => t.id === block.templateId);
+        return template?.schedule === "always";
+      });
 
       const openHeaderDayEditor = () => {
         const existing = sessions.find(s => s.date === headerDate)

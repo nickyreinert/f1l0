@@ -7,14 +7,19 @@
                 const isRest = trainType === "B";
                 const urgency = !isRest ? 0 : (daysSince ?? 0);
                 const urgencyColor = urgency <= 1 ? typeColor : urgency === 2 ? "#e8a000" : urgency === 3 ? "#e85000" : "#ff2222";
-                const urgencyTag = isRest && urgency >= 2
-                  ? urgency === 2 ? "TRAIN!" : urgency === 3 ? "TRAIN NOW!" : urgency === 4 ? "YOU MUST TRAIN!" : "LAZY BASTARD!"
-                  : null;
-                return <>
-                  <div style={{ lineHeight:0.88, position:"relative" }}>
-                    <div style={{ fontSize:"clamp(60px, 13vw, 128px)", fontWeight:900, letterSpacing:-3, color:urgencyColor }}>{isRest ? "REST" : "TRAIN"}</div>
-                    {urgencyTag && <div style={{ fontSize:"clamp(28px, 4vw, 42px)", fontWeight:900, letterSpacing:2, color:urgencyColor, marginTop:4 }}>{urgencyTag}</div>}
-                  </div>
+	                const urgencyTag = isRest && urgency >= 2
+	                  ? urgency === 2 ? "TRAIN!" : urgency === 3 ? "TRAIN NOW!" : urgency === 4 ? "YOU MUST TRAIN!" : "LAZY BASTARD!"
+	                  : null;
+	                const headline = isRest ? (headerHasDailyBlocks ? "RECOVERY" : "REST") : `TRAIN ${headerRoutineDay}`;
+	                const subline = isRest
+	                  ? (headerHasDailyBlocks ? "DAILY BLOCKS ONLY" : "NO SCHEDULED BLOCKS")
+	                  : `ROUTINE ${headerRoutineDay}`;
+	                return <>
+	                  <div style={{ lineHeight:0.88, position:"relative" }}>
+	                    <div style={{ fontSize:"clamp(60px, 13vw, 128px)", fontWeight:900, letterSpacing:-3, color:urgencyColor }}>{headline}</div>
+	                    <div style={{ ...mono, fontSize:14, color:"#888", letterSpacing:3, marginTop:8 }}>{subline}</div>
+	                    {urgencyTag && <div style={{ fontSize:"clamp(28px, 4vw, 42px)", fontWeight:900, letterSpacing:2, color:urgencyColor, marginTop:4 }}>{urgencyTag}</div>}
+	                  </div>
                   <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:6 }}>
                     <button onClick={() => setHeaderDayOffset(o => o - 1)} title="Previous day" style={{ background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, padding:"4px 10px", cursor:"pointer", fontSize:20, lineHeight:1 }}>‹</button>
                     <button onClick={openHeaderDayEditor} title="Edit day" style={{ ...lbl9, background:"none", border:"none", cursor:"pointer", color:"#aaa" }}>{fmtDate(headerDate).toUpperCase()}</button>
@@ -44,7 +49,7 @@
                   }}>{ICONS[key]}</button>
                 );
                 return <>
-                  {navBtn("protocol", () => setView("protocol"), "Protocol")}
+	                  {navBtn("protocol", () => setView("protocol"), "Routine")}
                   {navBtn("stats", () => setView("stats"), "Stats")}
                   {navBtn("settings", () => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setView("settings"); }, "Settings")}
                   {navBtn("data", () => setView("data"), "Data")}
