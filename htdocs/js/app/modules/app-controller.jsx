@@ -154,6 +154,24 @@
         mornCollapsed: mc ?? mornCollapsed,
       });
 
+      const switchTrainDay = () => {
+        const newType = trainType === "A" ? "B" : "A";
+        const plan = normalizeBlockPlan(blockPlan);
+        const prior = sessions.filter((s) => s.date < headerDate);
+        const lt = lastTargetsFromSessions(prior, headerDate);
+        const defaults = buildDefaultDayPayload({
+          date: headerDate,
+          priorSessions: prior,
+          dayType: newType,
+          lastTargets: lt,
+          plan,
+        });
+        setTrainType(newType);
+        setTrainBlocks(defaults.trainBlocks);
+        setExercises(flattenBlocks(defaults.trainBlocks));
+        persistSelectedDay({ type: newType, trainBlocks: defaults.trainBlocks, exercises: flattenBlocks(defaults.trainBlocks), mornExercises, mornDone, mornCollapsed });
+      };
+
       // Training handlers (block-based). Each commits new blocks + derived exercises.
       const commitBlocks = (n) => { setTrainBlocks(n); setExercises(flattenBlocks(n)); saveTrainBlocks(n); };
       const onBlkSetRep   = (bi,ei,si,v) => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutSetRep(E,ei,si,v)));

@@ -68,7 +68,7 @@
       );
     }
 
-    function HistoryDayEditModal({ entry, onClose, onSave, lbl9, mono, cond, ACC, BG, BDR }) {
+    function HistoryDayEditModal({ entry, onClose, onSave, lbl9, mono, cond, ACC, BG, BDR, blockPlan }) {
       const [draft, setDraft] = useState(entry);
 
       useEffect(() => {
@@ -85,6 +85,7 @@
       const setTrainExs = (v) => setDraft(prev => ({ ...prev, exercises: v }));
       const setMExs     = (v) => setDraft(prev => ({ ...prev, mornExercises: v }));
       const setTrainBlocks = (v) => setDraft(prev => ({ ...prev, trainBlocks: v, exercises: flattenBlocks(v) }));
+      const templates = normalizeBlockPlan(blockPlan).templates || [];
 
       return (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:3000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
@@ -125,10 +126,29 @@
                       />
                     </div>
                   ))}
-                  <button
-                    onClick={() => setTrainBlocks([...trainBlocks, mkBlock([mkEx()], `Training Block ${trainBlocks.length + 1}`)])}
-                    style={{ width:"100%", padding:"6px 0", background:"transparent", border:`1px dashed ${BDR}`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:12, marginTop:8 }}
-                  >+ BLOCK</button>
+                  <div style={{ marginTop:8, display:"flex", gap:6 }}>
+                    <select
+                      onChange={(e) => {
+                        const templateId = e.target.value;
+                        const template = templates.find(t => t.id === templateId);
+                        if (template) {
+                          const newBlock = mkBlock([mkEx()], template.name, template.id);
+                          setTrainBlocks([...trainBlocks, newBlock]);
+                          e.target.value = "";
+                        }
+                      }}
+                      style={{ flex:1, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#888", padding:"6px 8px", borderRadius:3, cursor:"pointer", fontSize:12, ...mono }}
+                    >
+                      <option value="">+ SELECT BLOCK TEMPLATE</option>
+                      {templates.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setTrainBlocks([...trainBlocks, mkBlock([mkEx()], `Training Block ${trainBlocks.length + 1}`)])}
+                      style={{ padding:"6px 12px", background:"transparent", border:`1px dashed ${BDR}`, color:"#666", borderRadius:3, cursor:"pointer", fontSize:12, ...mono, whiteSpace:"nowrap" }}
+                    >+ EMPTY</button>
+                  </div>
                 </>
               ) : (
                 <HistoryExerciseEditor exs={trainExs} setExs={setTrainExs} label="TRAINING" addLabel="EXERCISE" lbl9={lbl9} mono={mono} BDR={BDR} />

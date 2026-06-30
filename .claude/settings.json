@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm start *)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s http://localhost:8001/js/app/modules/app-controller.jsx)",
+      "Bash(chmod +x /tmp/check_ui.sh)",
+      "Bash(/tmp/check_ui.sh)",
+      "Bash(curl -s http://localhost:8001/)"
+    ]
+  }
+}

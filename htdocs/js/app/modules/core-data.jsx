@@ -188,9 +188,18 @@
 
     function sessionCountsForHeatmap(session) {
       if (!session) return false;
-      if ((session?.type || "A") === "B") return true;
       if (session.done || session.mornDone) return true;
       if ((session.mornExercises || []).some((ex) => ex?.done === true)) return true;
+      if ((session.exercises || []).some((ex) => ex?.done === true)) return true;
+      const blocks = Array.isArray(session.trainBlocks) ? session.trainBlocks : [];
+      if (blocks.some((block) => block?.startedAt != null)) return true;
+      if (blocks.some((block) => (block.exercises || []).some((ex) => ex?.done === true))) return true;
+      return false;
+    }
+
+    function sessionHasTraining(session) {
+      if (!session) return false;
+      if (session.done) return true;
       if ((session.exercises || []).some((ex) => ex?.done === true)) return true;
       const blocks = Array.isArray(session.trainBlocks) ? session.trainBlocks : [];
       if (blocks.some((block) => block?.startedAt != null)) return true;

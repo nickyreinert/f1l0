@@ -25,6 +25,7 @@
                     <button onClick={openHeaderDayEditor} title="Edit day" style={{ ...lbl9, background:"none", border:"none", cursor:"pointer", color:"#aaa" }}>{fmtDate(headerDate).toUpperCase()}</button>
                     <button onClick={() => setHeaderDayOffset(0)} title="Go to today" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:13, letterSpacing:1.5, lineHeight:1, ...cond }}>TODAY</button>
                     <button onClick={() => setHeaderDayOffset(o => Math.min(0, o + 1))} title="Next day" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:20, lineHeight:1 }}>›</button>
+                    {isViewingToday && <button onClick={switchTrainDay} title="Switch training day (A/B)" style={{ background:"transparent", border:`1px solid ${typeColor}`, color:typeColor, borderRadius:3, padding:"4px 12px", cursor:"pointer", fontSize:13, letterSpacing:2, fontWeight:700, ...cond }}>DAY {trainType}</button>}
                   </div>
                 </>;
               })()}
@@ -219,6 +220,7 @@
               ACC={ACC}
               BG={BG}
               BDR={BDR}
+              blockPlan={blockPlan}
             />
           )}
 
