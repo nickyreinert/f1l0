@@ -4,14 +4,17 @@
                 const daysSince = (lastTrainDate && lastTrainDate !== todayStr())
                   ? Math.floor((new Date(todayStr()+"T12:00:00") - new Date(lastTrainDate+"T12:00:00")) / 86400000)
                   : null;
-                const isRest = trainType === "B";
-                const urgency = !isRest ? 0 : (daysSince ?? 0);
+                const isRecoveryDay = trainBlocks.length > 0 && trainBlocks.every((b) => {
+                  const template = normalizeBlockPlan(blockPlan).templates.find((t) => t.id === b.templateId);
+                  return template?.schedule === "always";
+                });
+                const urgency = !isRecoveryDay ? 0 : (daysSince ?? 0);
                 const urgencyColor = urgency <= 1 ? typeColor : urgency === 2 ? "#e8a000" : urgency === 3 ? "#e85000" : "#ff2222";
-	                const urgencyTag = isRest && urgency >= 2
+	                const urgencyTag = isRecoveryDay && urgency >= 2
 	                  ? urgency === 2 ? "TRAIN!" : urgency === 3 ? "TRAIN NOW!" : urgency === 4 ? "YOU MUST TRAIN!" : "LAZY BASTARD!"
 	                  : null;
-	                const headline = isRest ? (headerHasDailyBlocks ? "RECOVERY" : "REST") : `TRAIN ${headerRoutineDay}`;
-	                const subline = isRest
+	                const headline = isRecoveryDay ? (headerHasDailyBlocks ? "RECOVERY" : "REST") : `TRAIN ${headerRoutineDay}`;
+	                const subline = isRecoveryDay
 	                  ? (headerHasDailyBlocks ? "DAILY BLOCKS ONLY" : "NO SCHEDULED BLOCKS")
 	                  : `ROUTINE ${headerRoutineDay}`;
 	                return <>

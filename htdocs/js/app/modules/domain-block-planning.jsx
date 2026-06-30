@@ -105,6 +105,22 @@
       });
     }
 
+    // WHY: Check if a forced recovery day is needed (based on rest cap)
+    function shouldForcedRecoveryDay({ priorSessions, plan }) {
+      if (!plan) return false;
+      const normalized = normalizeBlockPlan(plan);
+      const cap = normalized.restCap;
+      if (!cap.enabled) return false;
+      const sorted = [...(priorSessions || [])].sort((a, b) => b.date.localeCompare(a.date));
+      let restRun = 0;
+      for (const s of sorted) { if (sessionHasTraining(s)) break; restRun += 1; }
+      if (restRun > 0 && restRun < cap.restDays) return true;   // still inside the forced rest window
+      let trainRun = 0;
+      for (const s of sorted) { if (!sessionHasTraining(s)) break; trainRun += 1; }
+      if (trainRun >= cap.maxTrainDays) return true;            // hit the cap → force a rest day
+      return false;
+    }
+
     // WHY: A day is rest only when the global cap forces it; otherwise it is a training (rotation) day.
     function resolveDayTypeWithPlan({ priorSessions, plan, fallbackType }) {
       if (!plan) return fallbackType || "A";
@@ -113,10 +129,10 @@
       if (!cap.enabled) return "A";
       const sorted = [...(priorSessions || [])].sort((a, b) => b.date.localeCompare(a.date));
       let restRun = 0;
-      for (const s of sorted) { if ((s?.type || "A") !== "B") break; restRun += 1; }
+      for (const s of sorted) { if (sessionHasTraining(s)) break; restRun += 1; }
       if (restRun > 0 && restRun < cap.restDays) return "B";   // still inside the forced rest window
       let trainRun = 0;
-      for (const s of sorted) { if ((s?.type || "A") === "B") break; trainRun += 1; }
+      for (const s of sorted) { if (!sessionHasTraining(s)) break; trainRun += 1; }
       if (trainRun >= cap.maxTrainDays) return "B";            // hit the cap → force a rest day
       return "A";
     }
