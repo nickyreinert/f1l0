@@ -4,10 +4,6 @@
                 const daysSince = (lastTrainDate && lastTrainDate !== todayStr())
                   ? Math.floor((new Date(todayStr()+"T12:00:00") - new Date(lastTrainDate+"T12:00:00")) / 86400000)
                   : null;
-                const isRecoveryDay = trainBlocks.length > 0 && trainBlocks.every((b) => {
-                  const template = normalizeBlockPlan(blockPlan).templates.find((t) => t.id === b.templateId);
-                  return template?.schedule === "always";
-                });
                 const urgency = !isRecoveryDay ? 0 : (daysSince ?? 0);
                 const urgencyColor = urgency <= 1 ? typeColor : urgency === 2 ? "#e8a000" : urgency === 3 ? "#e85000" : "#ff2222";
 	                const urgencyTag = isRecoveryDay && urgency >= 2
@@ -28,7 +24,7 @@
                     <button onClick={openHeaderDayEditor} title="Edit day" style={{ ...lbl9, background:"none", border:"none", cursor:"pointer", color:"#aaa" }}>{fmtDate(headerDate).toUpperCase()}</button>
                     <button onClick={() => setHeaderDayOffset(0)} title="Go to today" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:13, letterSpacing:1.5, lineHeight:1, ...cond }}>TODAY</button>
                     <button onClick={() => setHeaderDayOffset(o => Math.min(0, o + 1))} title="Next day" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:20, lineHeight:1 }}>›</button>
-                    {isViewingToday && <button onClick={switchTrainDay} title="Switch training day (A/B)" style={{ background:"transparent", border:`1px solid ${typeColor}`, color:typeColor, borderRadius:3, padding:"4px 12px", cursor:"pointer", fontSize:13, letterSpacing:2, fontWeight:700, ...cond }}>DAY {trainType}</button>}
+                    {isViewingToday && <button onClick={switchTrainDay} title="Switch training day" style={{ background:"transparent", border:`1px solid ${typeColor}`, color:typeColor, borderRadius:3, padding:"4px 12px", cursor:"pointer", fontSize:13, letterSpacing:2, fontWeight:700, ...cond }}>DAY {trainType}</button>}
                   </div>
                 </>;
               })()}
@@ -116,7 +112,7 @@
                 </button>
               )}
             </div>
-            {trainType === "B" && trainBlocks.length > 0 && (
+            {isRecoveryDay && trainBlocks.length > 0 && (
               <div style={{ background:"#101510", border:`1px solid #263a26`, borderRadius:6, padding:"12px 14px", marginBottom:12 }}>
                 <div style={{ fontSize:16, color:ACC, letterSpacing:3, marginBottom:4 }}>RECOVERY DAY</div>
                 <div style={{ fontSize:18, color:"#aaa", lineHeight:1.5 }}>Only daily blocks are scheduled today. Spaced training blocks are held back.</div>
@@ -142,6 +138,8 @@
                   onEditStart={() => setEditBlockIdx(bi)}
                   canDeleteBlock={trainBlocks.length > 1}
                   onDeleteBlock={() => onDelBlock(bi)}
+                  canResetToTemplate={!!block.templateId}
+                  onResetToTemplate={() => onBlkResetToTemplate(bi)}
                 />
               ))}
               <button disabled={!canAddBlock} onClick={onAddBlock} style={{ width:"100%", padding:16, background:"transparent", border:`1px dashed ${canAddBlock ? "#444" : "#2a2a2a"}`, color: canAddBlock ? "#aaa" : "#555", borderRadius:6, cursor: canAddBlock ? "pointer" : "default", fontSize:20, letterSpacing:2, ...cond, fontWeight:700, marginBottom:12 }}>
@@ -160,7 +158,7 @@
                 );
               })()}
             </>}
-            {trainType === "B" && trainBlocks.length === 0 && (
+            {isRecoveryDay && trainBlocks.length === 0 && (
               <div style={{ background:CARD, border:`1px solid ${BDR}`, borderRadius:6, padding:20, marginBottom:12 }}>
                 <div style={{ fontSize:18, color:RED, letterSpacing:4, marginBottom:12 }}>REST DAY — NO TRAINING</div>
                 <div style={{ fontSize:20, color:"#aaa", lineHeight:1.7 }}>Spaced training blocks are held back today. No scheduled daily blocks are due.</div>

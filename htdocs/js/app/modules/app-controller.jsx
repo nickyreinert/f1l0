@@ -41,14 +41,15 @@
 
       // WHY: Extracted to avoid duplicating 9 setters in both initApp and selectedSession effect.
       const applySessionToState = (today, planForLabels = blockPlan, priorForTargets = sessions) => {
-        setTrainType(today.type);
+        setTrainType(today.routineDayLetter);
         const targetHistory = (priorForTargets || []).filter((s) => s.date < today.date);
-        const lastTraining = [...targetHistory].reverse().find((s) => s.type === "A");
+        const lastTraining = [...targetHistory].reverse().find((s) => sessionHasTraining(s));
         const blocks = syncOfferedBlocksFromPlan({
           blocks: sessionBlocks(today),
           plan: planForLabels,
           priorSessions: targetHistory,
-          dayType: today.type,
+          dayType: today.routineDayLetter,
+          isRecovery: shouldForcedRecoveryDay({ priorSessions: targetHistory, plan: planForLabels }),
           lastTargets: lastTargetsFromSessions(targetHistory, today.date),
           fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
           replaceGeneric: today.date >= todayStr(),
@@ -89,19 +90,25 @@
 
           let today = all.find(s => s.date === t);
           if (!today) {
-            const fallbackType = computeType(lastPrev?.date, lastPrev?.type);
             const plan = normalizeBlockPlan(cfg.blockPlan);
-            const nt = resolveDayTypeWithPlan({ date: t, priorSessions: prior, plan, fallbackType });
+            // WHY: Routine day letter (which templates to offer) and "is this a forced recovery day"
+            // (whether to suppress non-"always" blocks) are independent — see resolveRoutineDay vs
+            // shouldForcedRecoveryDay. Conflating them into a single A/B value was the root cause of
+            // recovery status and routine rotation corrupting each other across the app.
+            const routineDay = resolveRoutineDay(plan.routine, prior);
+            const isRecovery = shouldForcedRecoveryDay({ priorSessions: prior, plan });
+            const nt = routineDay;
             const lt = lastTargetsFromSessions(prior, t);
             const defaults = buildDefaultDayPayload({
               date: t,
               priorSessions: prior,
               dayType: nt,
+              isRecovery,
               lastTargets: lt,
               plan,
             });
             today = {
-              ...mkSession(t, nt, defaults.exercises, defaults.mornExercises),
+              ...mkSession(t, nt, defaults.exercises, defaults.mornExercises, isRecovery),
               trainBlocks: defaults.trainBlocks,
             };
             // Only persist a freshly-created default session once the user has
@@ -154,22 +161,32 @@
         mornCollapsed: mc ?? mornCollapsed,
       });
 
+      // WHY: Must reconcile (add/relabel) against the new day type, never regenerate from scratch —
+      // buildDefaultDayPayload creates brand-new blocks and was wiping out already-entered reps/exercises.
+      // Cycles through every configured routine letter (A, B, C, ...), not just an A/B toggle — the
+      // routine letter is orthogonal to recovery status (see resolveRoutineDay vs shouldForcedRecoveryDay).
+      // Manually switching the day is an explicit "I want to train today" override, so it always offers
+      // full routine blocks — it never re-applies the forced-recovery suppression for this day.
       const switchTrainDay = () => {
-        const newType = trainType === "A" ? "B" : "A";
         const plan = normalizeBlockPlan(blockPlan);
+        const days = routineDayLabels(plan.routine);
+        const newType = days[(days.indexOf(trainType) + 1) % days.length] || days[0];
         const prior = sessions.filter((s) => s.date < headerDate);
         const lt = lastTargetsFromSessions(prior, headerDate);
-        const defaults = buildDefaultDayPayload({
-          date: headerDate,
+        const lastTraining = [...prior].reverse().find((s) => sessionHasTraining(s));
+        const blocks = syncOfferedBlocksFromPlan({
+          blocks: trainBlocks,
+          plan,
           priorSessions: prior,
           dayType: newType,
           lastTargets: lt,
-          plan,
+          fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
+          replaceGeneric: headerDate >= todayStr(),
         });
         setTrainType(newType);
-        setTrainBlocks(defaults.trainBlocks);
-        setExercises(flattenBlocks(defaults.trainBlocks));
-        persistSelectedDay({ type: newType, trainBlocks: defaults.trainBlocks, exercises: flattenBlocks(defaults.trainBlocks), mornExercises, mornDone, mornCollapsed });
+        setTrainBlocks(blocks);
+        setExercises(flattenBlocks(blocks));
+        persistSelectedDay({ type: newType, trainBlocks: blocks, exercises: flattenBlocks(blocks), mornExercises, mornDone, mornCollapsed });
       };
 
       // Training handlers (block-based). Each commits new blocks + derived exercises.
@@ -185,16 +202,25 @@
       const onUncheckBlock= (bi)         => commitBlocks(mutUncheckBlock(trainBlocks,bi));
       const onBlkCollapse = (bi)         => commitBlocks(mutToggleCollapse(trainBlocks,bi));
       const onBlkSetStart = (bi,ts)      => commitBlocks(mutBlockStart(trainBlocks,bi,ts));
-      const canAddBlock   = trainType === "A" || normalizeBlockPlan(blockPlan).templates.some((t) => t.schedule === "always");
+      // WHY: Template edits in Settings no longer auto-propagate to already-generated blocks
+      // (that silently clobbered manual exercise edits — see commit history). This gives users
+      // an explicit, on-purpose way to pull in the current template's exercise list instead.
+      const onBlkResetToTemplate = (bi) => {
+        const block = trainBlocks[bi];
+        const template = normalizeBlockPlan(blockPlan).templates.find((t) => t.id === block?.templateId);
+        if (!template) return;
+        const prior = sessions.filter((s) => s.date < headerDate);
+        const lastTargets = lastTargetsFromSessions(prior, headerDate);
+        const resetExercises = buildTemplateExercises({ template, fallbackNames: [], fallbackSingle: "Pull-ups", lastTargets });
+        commitBlocks(trainBlocks.map((b, k) => k !== bi ? b : { ...b, exercises: resetExercises }));
+      };
+      const canAddBlock   = true;
       const onAddBlock    = ()           => {
-        if (!canAddBlock) return;
-
         const prior = sessions.filter((s) => s.date < headerDate);
         const plan = normalizeBlockPlan(blockPlan);
-        const activeTemplates = resolveActiveTemplates(plan.templates, prior, { dailyOnly: trainType === "B", routine: plan.routine });
+        const activeTemplates = resolveActiveTemplates(plan.templates, prior, { dayType: trainType, routine: plan.routine });
 
         if (!activeTemplates.length) {
-          if (trainType === "B") return;
           commitBlocks(mutAddBlock(trainBlocks));
           return;
         }
@@ -293,16 +319,27 @@
 
         if (section === "morn") {
           const n = mornExercises.map((ex, k) => k !== ei ? ex : applyEx(ex));
-          setMornExercises(n); saveMorn(n);
+          setMornExercises(n);
+          saveMorn(n);
+          setModalOpen(false);
         } else if (section === "block") {
-          const newBlocks = mutBlockEx(trainBlocks, modalTarget.bi, E => E.map((ex, k) => k !== ei ? ex : applyEx(ex)));
-          commitBlocks(newBlocks);
+          const newBlocks = trainBlocks.map((b, bi) =>
+            bi !== modalTarget.bi ? b : {
+              ...b,
+              exercises: b.exercises.map((ex, k) => k !== ei ? ex : applyEx(ex))
+            }
+          );
+          setTrainBlocks(newBlocks);
+          setExercises(flattenBlocks(newBlocks));
+          saveTrainBlocks(newBlocks);
+          setModalOpen(false);
         } else {
           const n = exercises.map((ex, k) => k !== ei ? ex : applyEx(ex));
-          setExercises(n); saveExercises(n);
+          setExercises(n);
+          saveExercises(n);
+          setModalOpen(false);
         }
         setRecentEx(prev => [exName, ...prev.filter(e => e !== exName)].slice(0,8));
-        setModalOpen(false);
       };
 
       // ─── History edit / selected day ───────────────────────────────────────
@@ -324,10 +361,17 @@
         return mkSession(headerDate, "A", [], []);
       }, [sessions, headerDate, draftTodaySession]);
 
-      // WHY: Sync all UI state when user navigates to a different day in the history.
+      // WHY: Sync all UI state when user navigates to a different day, or when the
+      // block plan itself changes (e.g. edited in Settings). Deliberately NOT keyed
+      // on `selectedSession`/`sessions`: every local edit (rename exercise, add
+      // exercise, log a rep) round-trips through persistSelectedDay -> setSessions,
+      // which would otherwise re-run this effect and re-run syncOfferedBlocksFromPlan
+      // on the just-saved data, clobbering the edit the user just made (it rebuilds
+      // block.exercises from the template whenever names/length don't match).
       useEffect(() => {
         applySessionToState(migrateSession(selectedSession), blockPlan);
-      }, [selectedSession, blockPlan]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [headerDate, blockPlan]);
 
       const completeMorning = async () => {
         if (mornDone || !isViewingToday) return;
@@ -391,7 +435,9 @@
           return Object.values(map);
         };
         (parsed.history || []).forEach(e => {
-          const s = ensure(e.date, e.type);
+          const s = ensure(e.date, e.routineDayLetter || e.type || "A");
+          s.routineDayLetter = e.routineDayLetter || e.type || "A";
+          s.isRecoveryDay = e.isRecoveryDay || false;
           s.mornExercises = toExs(e.mornExercises);
           s.exercises = toExs(e.exercises);
           if (e.notes) s.notes = e.notes;
@@ -413,7 +459,8 @@
         setSessions(sess);
       };
 
-      const typeColor = trainType === "A" ? ACC : RED;
+      // WHY: Purely cosmetic badge coloring per routine letter — not a training/recovery signal.
+      const typeColor = trainType === "A" ? ACC : trainType === "B" ? RED : "#a070ff";
       const headerPriorSessions = useMemo(
         () => sessions.filter((s) => s.date < headerDate),
         [sessions, headerDate]
@@ -423,6 +470,14 @@
         const template = normalizeBlockPlan(blockPlan).templates.find((t) => t.id === block.templateId);
         return template?.schedule === "always";
       });
+      // WHY: Recovery must reflect what's actually offered today, not just what history alone would
+      // suggest — a manual day-switch overrides forced recovery by making a real routine block
+      // available, and the UI must agree with the blocks actually on screen, not contradict them.
+      const isRecoveryDay = shouldForcedRecoveryDay({ priorSessions: headerPriorSessions, plan: blockPlan })
+        && trainBlocks.every((block) => {
+          const template = normalizeBlockPlan(blockPlan).templates.find((t) => t.id === block.templateId);
+          return template?.schedule === "always";
+        });
 
       const openHeaderDayEditor = () => {
         const existing = sessions.find(s => s.date === headerDate)
@@ -432,12 +487,13 @@
           return;
         }
         const prior = sessions.filter((s) => s.date < headerDate);
-        const lastTraining = [...prior].reverse().find((s) => s.type === "A");
+        const lastTraining = [...prior].reverse().find((s) => sessionHasTraining(s));
         const normalizedBlocks = syncOfferedBlocksFromPlan({
           blocks: sessionBlocks(migrateSession(existing)),
           plan: blockPlan,
           priorSessions: prior,
-          dayType: existing.type || "A",
+          dayType: existing.routineDayLetter || existing.type || "A",
+          isRecovery: existing.isRecoveryDay || false,
           lastTargets: lastTargetsFromSessions(prior, headerDate),
           fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
           replaceGeneric: headerDate >= todayStr(),

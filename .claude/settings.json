@@ -6,7 +6,10 @@
       "Bash(curl -s http://localhost:8001/js/app/modules/app-controller.jsx)",
       "Bash(chmod +x /tmp/check_ui.sh)",
       "Bash(/tmp/check_ui.sh)",
-      "Bash(curl -s http://localhost:8001/)"
+      "Bash(curl -s http://localhost:8001/)",
+      "Bash(pkill -f \"http.server\")",
+      "Bash(curl -s http://localhost:8001/js/app/modules/ui-inputs.jsx)",
+      "Bash(node /private/tmp/claude-502/-Users-nicky-reinert-development-private-web-fitnessTracker/4b8ad8bd-51d9-46ac-a7e6-6d17dd7b2b09/scratchpad/migrate-history.js)"
     ]
   }
 }

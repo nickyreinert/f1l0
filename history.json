@@ -1,0 +1,3360 @@
+{
+  "schema": 4,
+  "cfg": {
+    "minPauseH": 4,
+    "supplements": [
+      {
+        "name": "Kreatin",
+        "amount": "1 Scoop",
+        "time": "Morgens"
+      },
+      {
+        "name": "Fischöl",
+        "amount": "1 Pille ",
+        "time": "Mittags "
+      },
+      {
+        "name": "Protein",
+        "amount": "1 Spoon",
+        "time": "Mittags"
+      },
+      {
+        "name": "Fischöl",
+        "amount": "1 Pille",
+        "time": "Abends"
+      },
+      {
+        "name": "Protein",
+        "amount": "1 Spoon",
+        "time": "Abends"
+      }
+    ],
+    "restSecs": 60,
+    "customExercises": [
+      "Knee-Claps",
+      "Knee-Elbow",
+      "Ring Bows",
+      "Walkout",
+      "Plank Toe Touches",
+      "Single-Leg Romanian Deadlift",
+      "Bird-Dog"
+    ],
+    "cooldownMs": 10800000,
+    "blockPlan": {
+      "templates": [
+        {
+          "id": "push",
+          "name": "Frühsport",
+          "cadenceEvery": 1,
+          "schedule": "always",
+          "routineDay": "A",
+          "exerciseNames": [
+            "Knee-Claps",
+            "Squats",
+            "Knee-Elbow",
+            "Walkout",
+            "Plank Toe Touches",
+            "Single-Leg Romanian Deadlift",
+            "Bird-Dog"
+          ]
+        },
+        {
+          "id": "pull",
+          "name": "Train 1",
+          "cadenceEvery": 2,
+          "schedule": "routine",
+          "routineDay": "A",
+          "exerciseNames": [
+            "Pull-ups",
+            "Ring Bows",
+            "Push-ups"
+          ]
+        },
+        {
+          "id": "t1782508476357",
+          "name": "Train 2",
+          "cadenceEvery": 2,
+          "schedule": "routine",
+          "routineDay": "B",
+          "exerciseNames": [
+            "Pistol Squat",
+            "Glute Bridges",
+            "Hanging Leg Raises"
+          ]
+        }
+      ],
+      "routine": {
+        "dayCount": 2,
+        "trainDays": 5,
+        "restDays": 2
+      },
+      "restCap": {
+        "enabled": true,
+        "maxTrainDays": 5,
+        "restDays": 2
+      }
+    }
+  },
+  "sessions": [
+    {
+      "date": "2026-06-01",
+      "supps": {},
+      "done": true,
+      "notes": "Supplements: Fishoil, Kreatin (Frühstück), Protein (Mittag)",
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "target": 7,
+          "reps": [
+            7,
+            7,
+            7
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 13,
+          "reps": [
+            13,
+            13
+          ],
+          "done": true
+        }
+      ],
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "repsRaw": "50",
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "repsRaw": "50",
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "repsRaw": "50",
+          "done": true
+        }
+      ],
+      "updatedAt": 1781810817446,
+      "mornDone": false,
+      "trainBlocks": [
+        {
+          "id": "bmqjw5kg2k",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 7,
+              "reps": [
+                7,
+                7,
+                7
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 13,
+              "reps": [
+                13,
+                13
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810817443,
+          "collapsed": true
+        }
+      ],
+      "mornCollapsed": false,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-02",
+      "supps": {},
+      "done": true,
+      "notes": "No block. Supplements: Kreatin (Frühstück), Protein (Mittag), kein Fishoil",
+      "exercises": [
+        {
+          "name": "Knee Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-2-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "mornExercises": [],
+      "mornCollapsed": false,
+      "routineDayLetter": "B",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-03",
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "kreatin": true,
+        "fischöl": true
+      },
+      "done": true,
+      "notes": "",
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "target": 8,
+          "reps": [
+            8,
+            7,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 13,
+          "reps": [
+            13,
+            13,
+            13
+          ],
+          "done": true
+        },
+        {
+          "name": "Abs Roller",
+          "target": 8,
+          "reps": [
+            8,
+            8,
+            8
+          ],
+          "done": true
+        }
+      ],
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "mornDone": false,
+      "trainBlocks": [
+        {
+          "id": "bmqjw4bjab",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 8,
+              "reps": [
+                8,
+                7,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 13,
+              "reps": [
+                13,
+                13,
+                13
+              ],
+              "done": true
+            },
+            {
+              "name": "Abs Roller",
+              "target": 8,
+              "reps": [
+                8,
+                8,
+                8
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810764355,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1781810803039,
+      "mornCollapsed": false,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-04",
+      "mornExercises": [
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            10
+          ],
+          "done": false
+        }
+      ],
+      "exercises": [
+        {
+          "name": "Knee Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": false
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": false
+        },
+        {
+          "name": "Knee-2-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": false
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "kreatin": true,
+        "protein": true,
+        "fischöl": true,
+        "2_protein_abends": true,
+        "3_protein_mittags": true,
+        "1_fischöl_abends": true,
+        "0_kreatin_morgens": true
+      },
+      "done": false,
+      "mornDone": false,
+      "notes": "",
+      "mornCollapsed": false,
+      "routineDayLetter": "B",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-05",
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Abs Roller",
+          "target": 8,
+          "reps": [
+            8,
+            8,
+            8
+          ],
+          "done": true
+        },
+        {
+          "name": "Klimmzüge",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            13,
+            13,
+            13
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "3_protein_mittags": true,
+        "2_protein_abends": true,
+        "1_fischöl_abends": true
+      },
+      "done": true,
+      "mornDone": true,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmq13tzgh1",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Abs Roller",
+              "target": 8,
+              "reps": [
+                8,
+                8,
+                8
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810753833,
+          "collapsed": true
+        },
+        {
+          "id": "bmq148kp40",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                13,
+                13,
+                13
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810753094,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1781810753836,
+      "mornCollapsed": false,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-06",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Knee Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": false
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": false
+        },
+        {
+          "name": "Knee-2-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": false
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "3_protein_mittags": true,
+        "2_protein_abends": true,
+        "1_fischöl_abends": true
+      },
+      "done": false,
+      "mornDone": false,
+      "notes": "",
+      "updatedAt": 1780770733206,
+      "mornCollapsed": false,
+      "routineDayLetter": "B",
+      "isRecoveryDay": true
+    },
+    {
+      "date": "2026-06-07",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "target": 6,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            11,
+            11,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Abs Roller",
+          "target": 8,
+          "reps": [
+            8,
+            8,
+            8
+          ],
+          "done": true
+        },
+        {
+          "name": "Klimmzüge",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "3_protein_mittags": true,
+        "2_protein_abends": true,
+        "1_fischöl_abends": true
+      },
+      "done": true,
+      "mornDone": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmq3eoqzr1",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 6,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                11,
+                11,
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Abs Roller",
+              "target": 8,
+              "reps": [
+                8,
+                8,
+                8
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810747017,
+          "collapsed": true
+        },
+        {
+          "id": "bmq3x2e820",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810748000,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1781810748002,
+      "mornCollapsed": false,
+      "routineDayLetter": "A",
+      "isRecoveryDay": true
+    },
+    {
+      "date": "2026-06-08",
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "exercises": [],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false
+      },
+      "done": false,
+      "mornDone": true,
+      "notes": "",
+      "updatedAt": 1780895504287,
+      "mornCollapsed": false,
+      "routineDayLetter": "B",
+      "isRecoveryDay": true
+    },
+    {
+      "date": "2026-06-09",
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "target": 6,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 11,
+          "reps": [
+            10,
+            9,
+            9
+          ],
+          "done": true
+        },
+        {
+          "name": "Abs Roller",
+          "target": 8,
+          "reps": [
+            8,
+            8,
+            8
+          ],
+          "done": true
+        },
+        {
+          "name": "Klimmzüge",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "3_protein_mittags": true,
+        "1_fischöl_abends": true,
+        "2_protein_abends": true
+      },
+      "done": true,
+      "mornDone": true,
+      "notes": "",
+      "updatedAt": 1781810737031,
+      "trainBlocks": [
+        {
+          "id": "bmq6n7x491",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 6,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 11,
+              "reps": [
+                10,
+                9,
+                9
+              ],
+              "done": true
+            },
+            {
+              "name": "Abs Roller",
+              "target": 8,
+              "reps": [
+                8,
+                8,
+                8
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810737028,
+          "collapsed": true
+        },
+        {
+          "id": "bmq73pspe0",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810736376,
+          "collapsed": true
+        }
+      ],
+      "mornCollapsed": false,
+      "routineDayLetter": "B",
+      "isRecoveryDay": true
+    },
+    {
+      "date": "2026-06-10",
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "repsRaw": "50",
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "repsRaw": "50",
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "repsRaw": "50",
+          "done": true
+        }
+      ],
+      "exercises": [],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_abends": true,
+        "2_protein_abends": true,
+        "3_protein_mittags": true
+      },
+      "done": false,
+      "mornDone": false,
+      "notes": "",
+      "updatedAt": 1782506827290,
+      "mornCollapsed": false,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-11",
+      "mornExercises": [],
+      "exercises": [],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true
+      },
+      "done": false,
+      "mornDone": false,
+      "notes": "",
+      "updatedAt": 1782506812494,
+      "mornCollapsed": false,
+      "routineDayLetter": "A",
+      "isRecoveryDay": true
+    },
+    {
+      "date": "2026-06-12",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "target": 6,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            10,
+            9,
+            9
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_abends": true,
+        "2_protein_abends": true,
+        "3_protein_mittags": true
+      },
+      "done": true,
+      "mornDone": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmqb4acfb1",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 6,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                10,
+                9,
+                9
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781604513989,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1781810724614,
+      "mornCollapsed": false,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-13",
+      "mornExercises": [],
+      "exercises": [],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_abends": true,
+        "2_protein_abends": true,
+        "3_protein_mittags": true
+      },
+      "done": false,
+      "mornDone": false,
+      "notes": "",
+      "updatedAt": 1782506816052,
+      "mornCollapsed": false,
+      "routineDayLetter": "B",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-14",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "target": 6,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            10,
+            9,
+            9
+          ],
+          "done": true
+        },
+        {
+          "name": "Klimmzüge",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            12,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "2_protein_abends": true,
+        "3_protein_mittags": true,
+        "1_fischöl_abends": true
+      },
+      "done": true,
+      "mornDone": false,
+      "notes": "",
+      "updatedAt": 1781810700048,
+      "trainBlocks": [
+        {
+          "id": "bmqdzwf4m2",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 6,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                10,
+                9,
+                9
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810698747,
+          "collapsed": true
+        },
+        {
+          "id": "bmqdzx7sd3",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                12,
+                10,
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810700047,
+          "collapsed": true
+        }
+      ],
+      "mornCollapsed": false,
+      "routineDayLetter": "B",
+      "isRecoveryDay": true
+    },
+    {
+      "date": "2026-06-15",
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "exercises": [],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_abends": true,
+        "2_protein_abends": true,
+        "3_protein_mittags": true,
+        "4_fischöl_mittags_": true
+      },
+      "done": false,
+      "mornDone": true,
+      "notes": "",
+      "updatedAt": 1781549057894,
+      "mornCollapsed": false,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-16",
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "target": 6,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Klimmzüge",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "4_fischöl_mittags_": false,
+        "3_protein_mittags": false,
+        "1_fischöl_abends": true,
+        "2_protein_abends": true
+      },
+      "done": true,
+      "mornDone": true,
+      "notes": "",
+      "updatedAt": 1781810694192,
+      "trainBlocks": [
+        {
+          "id": "bmqgf119o0",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 6,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810694190,
+          "collapsed": true
+        },
+        {
+          "id": "bmqgwkpo11",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781810693389,
+          "collapsed": true
+        }
+      ],
+      "mornCollapsed": false,
+      "routineDayLetter": "A",
+      "isRecoveryDay": true
+    },
+    {
+      "date": "2026-06-17",
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "target": 10,
+          "reps": [
+            10
+          ],
+          "done": false
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true
+      },
+      "done": false,
+      "mornDone": true,
+      "notes": "",
+      "updatedAt": 1781678061332,
+      "mornCollapsed": false,
+      "routineDayLetter": "B",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-18",
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "exercises": [
+        {
+          "name": "Klimmzüge",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 10,
+          "reps": [
+            8,
+            8,
+            8
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Klimmzüge",
+          "target": 10,
+          "reps": [
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Liegestütze",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "3_protein_mittags": true,
+        "4_fischöl_mittags_": true,
+        "1_fischöl_abends": true,
+        "2_protein_abends": true,
+        "1_fischöl_mittags_": true,
+        "3_fischöl_abends": true,
+        "2_protein_mittags": true,
+        "4_protein_abends": true
+      },
+      "done": true,
+      "mornDone": true,
+      "notes": "",
+      "updatedAt": 1781937178993,
+      "trainBlocks": [
+        {
+          "id": "bmqjlcb8x5",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 10,
+              "reps": [
+                8,
+                8,
+                8
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781937000000,
+          "collapsed": true
+        },
+        {
+          "id": "bmqjscjqr1",
+          "exercises": [
+            {
+              "name": "Klimmzüge",
+              "target": 10,
+              "reps": [
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Liegestütze",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781937165701,
+          "collapsed": true
+        }
+      ],
+      "mornCollapsed": true,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-19",
+      "mornExercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Kniebeugen",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "exercises": [
+        {
+          "name": "Glute Bridges",
+          "target": 10,
+          "reps": [],
+          "done": false
+        },
+        {
+          "name": "Hanging Leg Raises",
+          "target": 10,
+          "reps": [],
+          "done": false
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "2_protein_mittags": true
+      },
+      "done": false,
+      "mornDone": true,
+      "mornCollapsed": true,
+      "notes": "",
+      "updatedAt": 1782906426729,
+      "trainBlocks": [
+        {
+          "id": "bmr20g2mb69",
+          "label": "Train 2",
+          "templateId": "t1782508476357",
+          "exercises": [
+            {
+              "name": "Glute Bridges",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [],
+              "done": false
+            },
+            {
+              "name": "Hanging Leg Raises",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [],
+              "done": false
+            }
+          ],
+          "startedAt": null,
+          "collapsed": false
+        }
+      ],
+      "routineDayLetter": "B",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-20",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Squats",
+          "target": 10,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Pull-ups",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 8,
+          "reps": [
+            8,
+            8,
+            8
+          ],
+          "done": true
+        },
+        {
+          "name": "Push-ups",
+          "target": 10,
+          "reps": [
+            9,
+            10,
+            9
+          ],
+          "done": true
+        },
+        {
+          "name": "Pull-ups",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            6
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 8,
+          "reps": [
+            8,
+            8,
+            8
+          ],
+          "done": true
+        },
+        {
+          "name": "Push-ups",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_mittags_": true,
+        "2_protein_mittags": true,
+        "3_fischöl_abends": true,
+        "4_protein_abends": true
+      },
+      "done": true,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmqlynd5p3",
+          "label": "Frühsport",
+          "exercises": [
+            {
+              "name": "Knee-Claps",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Squats",
+              "target": 10,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Knee-Elbow",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781938224447,
+          "collapsed": true
+        },
+        {
+          "id": "bmqlynd5p4",
+          "label": "Train 1",
+          "exercises": [
+            {
+              "name": "Pull-ups",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 8,
+              "reps": [
+                8,
+                8,
+                8
+              ],
+              "done": true
+            },
+            {
+              "name": "Push-ups",
+              "target": 10,
+              "reps": [
+                9,
+                10,
+                9
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781948363457,
+          "collapsed": true,
+          "templateId": "pull"
+        },
+        {
+          "id": "bmqmbnm96b",
+          "label": "Train 1",
+          "templateId": "pull",
+          "exercises": [
+            {
+              "name": "Pull-ups",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                6
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 8,
+              "reps": [
+                8,
+                8,
+                8
+              ],
+              "done": true
+            },
+            {
+              "name": "Push-ups",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1781960380449,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1782906412209,
+      "routineDayLetter": "B",
+      "isRecoveryDay": true
+    },
+    {
+      "date": "2026-06-21",
+      "mornExercises": [],
+      "exercises": [],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true
+      },
+      "done": false,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "updatedAt": 1782506787894,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-22",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Squats",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Pull-ups",
+          "target": 10,
+          "reps": [
+            6,
+            6,
+            7
+          ],
+          "done": true
+        },
+        {
+          "name": "Push-ups",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 8,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Pull-ups",
+          "target": 6,
+          "reps": [
+            7,
+            6,
+            7
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 8,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Push-ups",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "2_protein_mittags": true,
+        "3_fischöl_abends": true,
+        "1_fischöl_mittags_": true,
+        "4_protein_abends": true
+      },
+      "done": true,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmqp0twq03",
+          "label": "Frühsport",
+          "templateId": "push",
+          "exercises": [
+            {
+              "name": "Knee-Claps",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Knee-Elbow",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Squats",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1782106200000,
+          "collapsed": true
+        },
+        {
+          "id": "bmqp0twq04",
+          "label": "Train",
+          "templateId": "pull",
+          "exercises": [
+            {
+              "name": "Pull-ups",
+              "target": 10,
+              "reps": [
+                6,
+                6,
+                7
+              ],
+              "done": true
+            },
+            {
+              "name": "Push-ups",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 8,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1782124458741,
+          "collapsed": true
+        },
+        {
+          "id": "bmqpeae4v6",
+          "label": "Train",
+          "templateId": "pull",
+          "exercises": [
+            {
+              "name": "Pull-ups",
+              "target": 6,
+              "reps": [
+                7,
+                6,
+                7
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 8,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Push-ups",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1782144595295,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1782153918504,
+      "routineDayLetter": "A",
+      "isRecoveryDay": true
+    },
+    {
+      "date": "2026-06-23",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Squats",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_mittags_": true,
+        "2_protein_mittags": true
+      },
+      "done": true,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmqq5882d2",
+          "label": "Frühsport",
+          "templateId": "push",
+          "exercises": [
+            {
+              "name": "Knee-Claps",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Knee-Elbow",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Squats",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1782189088953,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1782506792999,
+      "routineDayLetter": "B",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-24",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Squats",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Pull-ups",
+          "target": 6,
+          "reps": [
+            7,
+            7,
+            7
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Push-ups",
+          "target": 10,
+          "reps": [
+            10,
+            11,
+            12
+          ],
+          "done": true
+        },
+        {
+          "name": "Pull-ups",
+          "target": 7,
+          "reps": [
+            7,
+            7,
+            7
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Push-ups",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_mittags_": true,
+        "2_protein_mittags": true
+      },
+      "done": true,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmqrmrcm43",
+          "label": "Frühsport",
+          "exercises": [
+            {
+              "name": "Knee-Claps",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Knee-Elbow",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Squats",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1782278781268,
+          "collapsed": true
+        },
+        {
+          "id": "bmqrmrcm44",
+          "label": "Train",
+          "exercises": [
+            {
+              "name": "Pull-ups",
+              "target": 6,
+              "reps": [
+                7,
+                7,
+                7
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Push-ups",
+              "target": 10,
+              "reps": [
+                10,
+                11,
+                12
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1782308411500,
+          "collapsed": true
+        },
+        {
+          "id": "bmqsbnz2w3",
+          "label": "Train",
+          "templateId": "pull",
+          "exercises": [
+            {
+              "name": "Pull-ups",
+              "target": 7,
+              "reps": [
+                7,
+                7,
+                7
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Push-ups",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1782321452761,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1782321452768,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-25",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Squats",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Pistol Squat",
+          "target": 10,
+          "reps": [],
+          "done": false
+        },
+        {
+          "name": "Glute Bridges",
+          "target": 10,
+          "reps": [],
+          "done": false
+        },
+        {
+          "name": "Hanging Leg Raises",
+          "target": 10,
+          "reps": [],
+          "done": false
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_mittags_": true,
+        "2_protein_mittags": true,
+        "3_fischöl_abends": true,
+        "4_protein_abends": true
+      },
+      "done": true,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmqt1is3m2",
+          "label": "Frühsport",
+          "templateId": "push",
+          "exercises": [
+            {
+              "name": "Knee-Claps",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Knee-Elbow",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Squats",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1782364044170,
+          "collapsed": true
+        },
+        {
+          "id": "bmr20ezay3a",
+          "label": "Train 2",
+          "templateId": "t1782508476357",
+          "exercises": [
+            {
+              "name": "Pistol Squat",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [],
+              "done": false
+            },
+            {
+              "name": "Glute Bridges",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [],
+              "done": false
+            },
+            {
+              "name": "Hanging Leg Raises",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [],
+              "done": false
+            }
+          ],
+          "startedAt": null,
+          "collapsed": false
+        }
+      ],
+      "updatedAt": 1782906368254,
+      "routineDayLetter": "B",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-26",
+      "mornExercises": [],
+      "exercises": [],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_mittags_": true,
+        "2_protein_mittags": true,
+        "4_protein_abends": true,
+        "3_fischöl_abends": true
+      },
+      "done": false,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "updatedAt": 1782507632380,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-28",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Squats",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Walkout",
+          "target": 10,
+          "reps": [
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Plank Toe Touches",
+          "target": 10,
+          "reps": [],
+          "done": true
+        },
+        {
+          "name": "Single-Leg Romanian Deadlift",
+          "target": 10,
+          "reps": [
+            40
+          ],
+          "done": true
+        },
+        {
+          "name": "Bird-Dog",
+          "target": 10,
+          "reps": [],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_mittags_": true,
+        "2_protein_mittags": true,
+        "4_protein_abends": true,
+        "3_fischöl_abends": true
+      },
+      "done": true,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmqxe9khp3",
+          "label": "Frühsport",
+          "templateId": "push",
+          "exercises": [
+            {
+              "name": "Knee-Claps",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Squats",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Knee-Elbow",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Walkout",
+              "target": 10,
+              "reps": [
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Plank Toe Touches",
+              "target": 10,
+              "reps": [],
+              "done": true
+            },
+            {
+              "name": "Single-Leg Romanian Deadlift",
+              "target": 10,
+              "reps": [
+                40
+              ],
+              "done": true
+            },
+            {
+              "name": "Bird-Dog",
+              "target": 10,
+              "reps": [],
+              "done": true
+            }
+          ],
+          "startedAt": 1782627495264,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1782710190855,
+      "routineDayLetter": "A",
+      "isRecoveryDay": true
+    },
+    {
+      "date": "2026-06-29",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Squats",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Walkout",
+          "target": 10,
+          "reps": [
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Plank Toe Touches",
+          "target": 10,
+          "reps": [],
+          "done": true
+        },
+        {
+          "name": "Single-Leg Romanian Deadlift",
+          "target": 40,
+          "reps": [
+            20
+          ],
+          "done": true
+        },
+        {
+          "name": "Bird-Dog",
+          "target": 10,
+          "reps": [],
+          "done": true
+        },
+        {
+          "name": "Pull-ups",
+          "target": 7,
+          "reps": [
+            7,
+            7,
+            7
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Push-ups",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "2_protein_mittags": false,
+        "0_kreatin_morgens": true
+      },
+      "done": true,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmqyqmjhn2",
+          "label": "Frühsport",
+          "templateId": "push",
+          "exercises": [
+            {
+              "name": "Knee-Claps",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Squats",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Knee-Elbow",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Walkout",
+              "target": 10,
+              "reps": [
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Plank Toe Touches",
+              "target": 10,
+              "reps": [],
+              "done": true
+            },
+            {
+              "name": "Single-Leg Romanian Deadlift",
+              "target": 40,
+              "reps": [
+                20
+              ],
+              "done": true
+            },
+            {
+              "name": "Bird-Dog",
+              "target": 10,
+              "reps": [],
+              "done": true
+            }
+          ],
+          "startedAt": 1782708890093,
+          "collapsed": true
+        },
+        {
+          "id": "bmqzeqltuf",
+          "label": "Train 1",
+          "templateId": "t1782508476357",
+          "exercises": [
+            {
+              "name": "Pull-ups",
+              "target": 7,
+              "reps": [
+                7,
+                7,
+                7
+              ],
+              "suggestedReps": [],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "suggestedReps": [],
+              "done": true
+            },
+            {
+              "name": "Push-ups",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "suggestedReps": [],
+              "done": true
+            }
+          ],
+          "startedAt": 1782906358427,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1782906358428,
+      "routineDayLetter": "B",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-06-30",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [],
+          "done": false
+        },
+        {
+          "name": "Squats",
+          "target": 50,
+          "reps": [],
+          "done": false
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [],
+          "done": false
+        },
+        {
+          "name": "Walkout",
+          "target": 10,
+          "reps": [],
+          "done": false
+        },
+        {
+          "name": "Plank Toe Touches",
+          "target": 10,
+          "reps": [],
+          "done": false
+        },
+        {
+          "name": "Single-Leg Romanian Deadlift",
+          "target": 20,
+          "reps": [],
+          "done": false
+        },
+        {
+          "name": "Bird-Dog",
+          "target": 10,
+          "reps": [],
+          "done": false
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false
+      },
+      "done": false,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmr0bs6ksw",
+          "label": "Frühsport",
+          "templateId": "push",
+          "exercises": [
+            {
+              "name": "Knee-Claps",
+              "target": 50,
+              "reps": [],
+              "suggestedReps": [
+                50
+              ],
+              "done": false
+            },
+            {
+              "name": "Squats",
+              "target": 50,
+              "reps": [],
+              "suggestedReps": [
+                50
+              ],
+              "done": false
+            },
+            {
+              "name": "Knee-Elbow",
+              "target": 50,
+              "reps": [],
+              "suggestedReps": [
+                50
+              ],
+              "done": false
+            },
+            {
+              "name": "Walkout",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [
+                10
+              ],
+              "done": false
+            },
+            {
+              "name": "Plank Toe Touches",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [],
+              "done": false
+            },
+            {
+              "name": "Single-Leg Romanian Deadlift",
+              "target": 20,
+              "reps": [],
+              "suggestedReps": [
+                20
+              ],
+              "done": false
+            },
+            {
+              "name": "Bird-Dog",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [],
+              "done": false
+            }
+          ],
+          "startedAt": null,
+          "collapsed": false
+        }
+      ],
+      "updatedAt": 1782804523853,
+      "routineDayLetter": "A",
+      "isRecoveryDay": false
+    },
+    {
+      "date": "2026-07-01",
+      "mornExercises": [],
+      "exercises": [
+        {
+          "name": "Knee-Claps",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Squats",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Knee-Elbow",
+          "target": 50,
+          "reps": [
+            50
+          ],
+          "done": true
+        },
+        {
+          "name": "Walkout",
+          "target": 10,
+          "reps": [],
+          "done": true
+        },
+        {
+          "name": "Plank Toe Touches",
+          "target": 10,
+          "reps": [],
+          "done": true
+        },
+        {
+          "name": "Single-Leg Romanian Deadlift",
+          "target": 20,
+          "reps": [],
+          "done": true
+        },
+        {
+          "name": "Bird-Dog",
+          "target": 10,
+          "reps": [],
+          "done": true
+        },
+        {
+          "name": "Pull-ups",
+          "target": 7,
+          "reps": [
+            7,
+            7,
+            7
+          ],
+          "done": true
+        },
+        {
+          "name": "Ring Bows",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        },
+        {
+          "name": "Push-ups",
+          "target": 10,
+          "reps": [
+            10,
+            10,
+            10
+          ],
+          "done": true
+        }
+      ],
+      "supps": {
+        "creatine": false,
+        "midProtein": false,
+        "eveCombo": false,
+        "0_kreatin_morgens": true,
+        "1_fischöl_mittags_": true,
+        "2_protein_mittags": true
+      },
+      "done": true,
+      "mornDone": false,
+      "mornCollapsed": false,
+      "notes": "",
+      "trainBlocks": [
+        {
+          "id": "bmr1z8a7aw",
+          "label": "Frühsport",
+          "templateId": "push",
+          "exercises": [
+            {
+              "name": "Knee-Claps",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "suggestedReps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Squats",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "suggestedReps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Knee-Elbow",
+              "target": 50,
+              "reps": [
+                50
+              ],
+              "suggestedReps": [
+                50
+              ],
+              "done": true
+            },
+            {
+              "name": "Walkout",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Plank Toe Touches",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [],
+              "done": true
+            },
+            {
+              "name": "Single-Leg Romanian Deadlift",
+              "target": 20,
+              "reps": [],
+              "suggestedReps": [
+                20
+              ],
+              "done": true
+            },
+            {
+              "name": "Bird-Dog",
+              "target": 10,
+              "reps": [],
+              "suggestedReps": [],
+              "done": true
+            }
+          ],
+          "startedAt": 1782883800000,
+          "collapsed": true
+        },
+        {
+          "id": "bmr20cxsiy",
+          "label": "Train 1",
+          "templateId": "pull",
+          "exercises": [
+            {
+              "name": "Pull-ups",
+              "target": 7,
+              "reps": [
+                7,
+                7,
+                7
+              ],
+              "suggestedReps": [
+                7,
+                7,
+                7
+              ],
+              "done": true
+            },
+            {
+              "name": "Ring Bows",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "suggestedReps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            },
+            {
+              "name": "Push-ups",
+              "target": 10,
+              "reps": [
+                10,
+                10,
+                10
+              ],
+              "suggestedReps": [
+                10,
+                10,
+                10
+              ],
+              "done": true
+            }
+          ],
+          "startedAt": 1782901800000,
+          "collapsed": true
+        }
+      ],
+      "updatedAt": 1782906336988,
+      "routineDayLetter": "A",
+      "isRecoveryDay": true
+    }
+  ],
+  "exportedAt": "2026-07-01T11:47:24.158Z"
+}

@@ -89,18 +89,22 @@
     }
 
     // WHY: Each block-type recurs on its own "every Nth training day" cadence, independent of the others.
-    //      Cadence counts real training days (type A), so a rest day pauses — never desyncs — the count.
+    //      Cadence counts real training days (any session with actual training logged), so a recovery
+    //      day pauses — never desyncs — the count. This is the routine ROTATION, unrelated to recovery.
     function resolveRoutineDay(routine, priorSessions) {
       const days = routineDayLabels(routine);
-      const trainIndex = (priorSessions || []).filter((s) => (s?.type || "A") === "A").length;
+      const trainIndex = (priorSessions || []).filter((s) => sessionHasTraining(s)).length;
       return days[trainIndex % days.length] || "A";
     }
 
+    // WHY: `dayType` here is purely a routine letter (A/B/C...), never a recovery flag — recovery is
+    // a fully independent concept (see shouldForcedRecoveryDay). "always" templates are offered every
+    // day regardless of letter; "routine" templates are offered only on their matching letter. There
+    // is no "dailyOnly" mode — hiding routine blocks based on the letter was the root conflation bug.
     function resolveActiveTemplates(templates, priorSessions, opts = {}) {
-      const activeRoutineDay = resolveRoutineDay(opts.routine, priorSessions);
+      const activeRoutineDay = opts.dayType || resolveRoutineDay(opts.routine, priorSessions);
       return (templates || []).filter((t) => {
         if (t.schedule === "always") return true;
-        if (opts.dailyOnly) return false;
         return (t.routineDay || "A") === activeRoutineDay;
       });
     }
@@ -201,32 +205,19 @@
       });
     }
 
+    // WHY: Only relabels blocks to match their template; deliberately never rewrites
+    // block.exercises based on a name/length mismatch against template.exerciseNames.
+    // A block's exercises are user-owned the moment it's created (renamed via the
+    // exercise-picker modal, or extended via "+ ADD EXERCISE") — silently rebuilding
+    // them from the template whenever they drift from the configured names caused
+    // both a real bug where renaming an exercise reverted instantly, and adding an
+    // exercise appeared to do nothing (the extra exercise was dropped right back out
+    // on the next re-render/reload, since names/length no longer matched the template).
     function syncPlannedBlocksFromPlan(blocks, plan, lastTargets) {
       const templates = normalizeBlockPlan(plan).templates;
       return labelBlocksFromPlan(blocks, plan).filter((block) => {
         if (!block?.templateId || isCompletedBlock(block)) return true;
         return templates.some((template) => template.id === block.templateId);
-      }).map((block) => {
-        const template = templates.find((t) => block?.templateId && block.templateId === t.id);
-        if (!template || isCompletedBlock(block) || !template.exerciseNames?.length) return block;
-        const currentNames = normalizeExerciseNames((block.exercises || []).map((ex) => ex?.name));
-        const plannedNames = normalizeExerciseNames(template.exerciseNames);
-        const sameExercises = currentNames.length === plannedNames.length
-          && plannedNames.every((name, idx) => name === currentNames[idx]);
-        if (sameExercises) {
-          const hasRecordedState = block.startedAt || (block.exercises || []).some((ex) => ex?.done === true);
-          if (hasRecordedState) return block;
-          return {
-            ...block,
-            label: template.name,
-            exercises: mkExFromTargets(plannedNames, lastTargets || {}),
-          };
-        }
-        return {
-          ...block,
-          label: template.name,
-          exercises: mkExFromTargets(plannedNames, lastTargets || {}),
-        };
       });
     }
 
@@ -235,20 +226,42 @@
       return !(block.exercises || []).some((ex) => ex?.done === true);
     }
 
-    function syncOfferedBlocksFromPlan({ blocks, plan, priorSessions, dayType, lastTargets, fallbackNames, replaceGeneric }) {
+    // WHY: A block the user hasn't touched yet (no reps entered, not started/done) is safe to drop
+    // when its template is no longer offered for the day type — e.g. switching Day A → Day B should
+    // swap out Day A's untouched block for Day B's. A block with any entered data is never dropped,
+    // no matter what the current day type says — that data would otherwise silently vanish.
+    function isUntouchedBlock(block) {
+      if (!block) return true;
+      if (block.startedAt) return false;
+      return !(block.exercises || []).some((ex) => (ex?.reps || []).some((v) => typeof v === "number" && v > 0) || ex?.done === true);
+    }
+
+    // WHY: isRecovery suppresses "routine"-schedule templates (forced rest per the rest cap),
+    // independent of which routine letter is active — recovery and routine rotation are orthogonal.
+    // Blocks with real data are never dropped regardless (see isUntouchedBlock below).
+    function syncOfferedBlocksFromPlan({ blocks, plan, priorSessions, dayType, isRecovery, lastTargets, fallbackNames, replaceGeneric }) {
       const normalized = normalizeBlockPlan(plan);
       const synced = syncPlannedBlocksFromPlan(blocks, normalized, lastTargets);
-      const activeTemplates = resolveActiveTemplates(normalized.templates, priorSessions || [], { dailyOnly: dayType === "B", routine: normalized.routine });
-      const presentTemplateIds = new Set(synced.map((block) => block?.templateId).filter(Boolean));
+      const allActiveTemplates = resolveActiveTemplates(normalized.templates, priorSessions || [], { dayType, routine: normalized.routine });
+      const activeTemplates = isRecovery ? allActiveTemplates.filter((t) => t.schedule === "always") : allActiveTemplates;
+      const activeTemplateIds = new Set(activeTemplates.map((t) => t.id));
+
+      // Drop blocks whose template is no longer offered today, but only if untouched —
+      // e.g. an empty "Block 1" (Day A only) makes way for "Block 2" (Day B) on switch.
+      const withoutInactiveEmpty = synced.filter((block) => {
+        if (!block?.templateId) return true;
+        if (activeTemplateIds.has(block.templateId)) return true;
+        return !isUntouchedBlock(block);
+      });
+
+      const presentTemplateIds = new Set(withoutInactiveEmpty.map((block) => block?.templateId).filter(Boolean));
       const missingTemplates = activeTemplates.filter((template) => !presentTemplateIds.has(template.id));
-      if (!missingTemplates.length) return synced;
+      if (!missingTemplates.length) return withoutInactiveEmpty;
 
-      const hasReplaceableGeneric = replaceGeneric && synced.some(isUnstartedGenericBlock);
-      if (!hasReplaceableGeneric && synced.length > 0) return synced;
-
+      const hasReplaceableGeneric = replaceGeneric && withoutInactiveEmpty.some(isUnstartedGenericBlock);
       const retained = hasReplaceableGeneric
-        ? synced.filter((block) => !isUnstartedGenericBlock(block))
-        : synced;
+        ? withoutInactiveEmpty.filter((block) => !isUnstartedGenericBlock(block))
+        : withoutInactiveEmpty;
       return [
         ...retained,
         ...buildTrainingBlocks(missingTemplates, fallbackNames || [], lastTargets || {}, priorSessions || []),
@@ -474,11 +487,14 @@
     }
 
     // WHY: Create full default day payload in one place to keep App initialization focused on state wiring.
-    function buildDefaultDayPayload({ date, priorSessions, dayType, lastTargets, plan }) {
+    // isRecovery suppresses "routine"-schedule blocks (forced rest per the rest cap) independent of
+    // which routine letter is active — recovery and routine rotation are orthogonal concepts.
+    function buildDefaultDayPayload({ date, priorSessions, dayType, isRecovery, lastTargets, plan }) {
       const normalized = normalizeBlockPlan(plan);
       const past = (priorSessions || []).filter((s) => s.date < date);
-      const activeTemplates = resolveActiveTemplates(normalized.templates, past, { dailyOnly: dayType === "B", routine: normalized.routine });
-      const lastTraining = [...priorSessions].reverse().find((s) => s.type === "A");
+      const allActiveTemplates = resolveActiveTemplates(normalized.templates, past, { dayType, routine: normalized.routine });
+      const activeTemplates = isRecovery ? allActiveTemplates.filter((t) => t.schedule === "always") : allActiveTemplates;
+      const lastTraining = [...priorSessions].reverse().find((s) => sessionHasTraining(s));
       const lastTrainNames = (lastTraining?.exercises || []).map((e) => e.name);
 
       const trainBlocks = activeTemplates.length

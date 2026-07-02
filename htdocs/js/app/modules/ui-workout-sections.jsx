@@ -186,8 +186,10 @@
     // ─── BlockCard (grease the groove) ───────────────────────────────────────────
     function BlockCard({ block, index, onSetRep, onDelRep, onAddExercise, onOpenModal,
                          onDeleteExercise, onAddRep, onRepAdded, onToggleExDone, onCheck, onUncheck,
-                         onToggleCollapse, onEditStart, canDeleteBlock, onDeleteBlock }) {
+                         onToggleCollapse, onEditStart, canDeleteBlock, onDeleteBlock,
+                         canResetToTemplate, onResetToTemplate }) {
       const [confirmDel, setConfirmDel] = useState(false);
+      const [confirmReset, setConfirmReset] = useState(false);
       const checked = block.startedAt !== null;
       const collapsed = block.collapsed;
 
@@ -213,6 +215,9 @@
             <button onClick={onToggleCollapse} title={collapsed ? "Expand" : "Collapse"} style={{ width:44, height:44, flexShrink:0, background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1 }}>
               {collapsed ? "▾" : "▴"}
             </button>
+            {canResetToTemplate && (
+              <button onClick={() => setConfirmReset(true)} title="Reset to template" style={{ width:44, height:44, flexShrink:0, background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1 }}>↺</button>
+            )}
             {canDeleteBlock && (
               <button onClick={() => setConfirmDel(true)} title="Delete block" style={{ width:44, height:44, flexShrink:0, background:CARD, border:`1px solid #444`, color:"#ff6b6b", borderRadius:3, cursor:"pointer", fontSize:24, lineHeight:1 }}>×</button>
             )}
@@ -246,6 +251,18 @@
                 <div style={{ display:"flex", gap:10 }}>
                   <button onClick={() => setConfirmDel(false)} style={{ flex:1, padding:14, background:"transparent", border:`1px solid #444`, color:"#aaa", borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:2, ...cond }}>CANCEL</button>
                   <button onClick={() => { setConfirmDel(false); onDeleteBlock(); }} style={{ flex:1, padding:14, background:"#2a0000", border:`1px solid ${RED}`, color:RED, borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:2, fontWeight:700, ...cond }}>REMOVE</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {confirmReset && (
+            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:"0 24px" }} onClick={() => setConfirmReset(false)}>
+              <div style={{ background:"#111", border:`1px solid #333`, borderRadius:10, padding:"28px 24px", width:"100%", maxWidth:360 }} onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize:15, color:"#ddd", marginBottom:24, lineHeight:1.5, ...cond }}>Reset this block's exercises to match its template? Manual changes to exercises in this block will be lost.</div>
+                <div style={{ display:"flex", gap:10 }}>
+                  <button onClick={() => setConfirmReset(false)} style={{ flex:1, padding:14, background:"transparent", border:`1px solid #444`, color:"#aaa", borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:2, ...cond }}>CANCEL</button>
+                  <button onClick={() => { setConfirmReset(false); onResetToTemplate(); }} style={{ flex:1, padding:14, background:"#2a0000", border:`1px solid ${RED}`, color:RED, borderRadius:4, cursor:"pointer", fontSize:13, letterSpacing:2, fontWeight:700, ...cond }}>RESET</button>
                 </div>
               </div>
             </div>

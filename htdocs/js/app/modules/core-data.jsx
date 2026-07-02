@@ -59,8 +59,8 @@
           runTrain = 0;
           expected = d; // start a new (older) run from here
         }
-        // Rest days (type B) bridge the gap but don't count as streak days.
-        if ((byDate[d]?.type ?? 'A') === 'A') runTrain++;
+        // Recovery days bridge the gap but don't count as streak days.
+        if (sessionHasTraining(byDate[d])) runTrain++;
         const dd = new Date(expected + "T12:00:00"); dd.setDate(dd.getDate() - 1);
         expected = dd.toISOString().slice(0, 10);
       }
@@ -117,12 +117,20 @@
         // it already has the flag, or its section/session was marked complete.
         const fill = (exs, sectionDone) => (exs || []).map(ex =>
           typeof ex.done === "boolean" ? ex : { ...ex, done: !!(sectionDone || s.done) });
-        return {
+        // Migration: old `type` field (A/B toggle) → new `routineDayLetter` + `isRecoveryDay`
+        // If old `type` exists but new fields don't, use `type` as routine letter and assume no recovery.
+        const migrated = {
           ...s,
           exercises:     fill(s.exercises, s.done),
           mornExercises: fill(s.mornExercises, s.mornDone),
           mornCollapsed: s.mornCollapsed ?? false,
         };
+        if (s.type && !migrated.routineDayLetter) {
+          migrated.routineDayLetter = s.type;
+          migrated.isRecoveryDay = false; // Conservative: assume no forced recovery
+          delete migrated.type;
+        }
+        return migrated;
       }
       const toFlat = (exs) => exs.map(ex => ({ name: ex.name, target: ex.reps[0]||10, reps: ex.reps, done: true }));
       const mornMap = {}, mainMap = {};
@@ -219,7 +227,10 @@
     // ─── Data shapes ─────────────────────────────────────────────────────────────
     const mkEx      = (name = "Push-ups", t = 10) => ({ name, target: t, reps: [t], done: false });
     const mkSup     = () => ({ creatine: false, midProtein: false, eveCombo: false });
-    const mkSession = (date, type, exercises, mornExercises) => ({ date, type, mornExercises: mornExercises || [], exercises: exercises || [], supps: mkSup(), done: false, mornDone: false, mornCollapsed: false, notes: "" });
+    // WHY: `type` parameter is now actually routineDayLetter (A/B/C...), and caller also passes isRecovery
+    // separately. Create session with new field names for schema v4.
+    const mkSession = (date, routineDayLetter, exercises, mornExercises, isRecoveryDay = false) =>
+      ({ date, routineDayLetter, isRecoveryDay, mornExercises: mornExercises || [], exercises: exercises || [], supps: mkSup(), done: false, mornDone: false, mornCollapsed: false, notes: "" });
 
     // ─── Training blocks (grease the groove) ─────────────────────────────────────
     // A block = one batch of sets you do, then rest (cooldown) before the next block.
