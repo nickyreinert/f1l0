@@ -3,6 +3,9 @@
 # Local Netlify folder
 .netlify
 
+# Local Firebase config for static dev servers (public keys, but kept out of git)
+htdocs/js/core/firebase-config.local.js
+
 # Data exports (kept locally / in archive only)
 updated-export-*.json
 export-*.json

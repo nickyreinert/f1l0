@@ -34,7 +34,35 @@
     };
 
     (async () => {
-      const firebaseConfig = await fetch("/.netlify/functions/firebase-config").then(r => r.json());
+      let firebaseConfig;
+
+      // Prod (Netlify): config comes from the serverless function (env vars).
+      try {
+        const res = await fetch("/.netlify/functions/firebase-config");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        firebaseConfig = await res.json();
+      } catch (e) {
+        // Local/static dev (e.g. Live Server): the Netlify function isn't served.
+        // Fall back to a gitignored local config file that sets window.__FIREBASE_CONFIG__.
+        const isLocal = ["127.0.0.1", "localhost"].includes(location.hostname);
+        if (isLocal) {
+          await new Promise((resolve) => {
+            // Classic <script> resolves relative to the document base URL and
+            // avoids module MIME / bare-specifier pitfalls of dynamic import().
+            const s = document.createElement("script");
+            s.src = "js/core/firebase-config.local.js";
+            s.onload = resolve;
+            s.onerror = resolve; // file absent — continue without cloud sync
+            document.head.appendChild(s);
+          });
+        }
+        if (window.__FIREBASE_CONFIG__) {
+          firebaseConfig = window.__FIREBASE_CONFIG__;
+        } else {
+          console.warn("Firebase config unavailable — cloud sync disabled locally:", e);
+          return;
+        }
+      }
 
       // Initialize Firebase via the already loaded compat SDK.
       const app = firebase.apps?.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
