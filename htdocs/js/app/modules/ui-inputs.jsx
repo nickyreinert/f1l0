@@ -1,5 +1,5 @@
     // ─── DialPad ─────────────────────────────────────────────────────────────────
-    function DialPad({ initialValue, onConfirm, onDelete, onClose }) {
+    function DialPad({ initialValue, onConfirm, onDelete, onClose, label, unit, deleteLabel }) {
       const [val, setVal] = useState(String(initialValue ?? ""));
       const press = d => setVal(v => v.length >= 4 ? v : v + d);
       const back  = () => setVal(v => v.slice(0, -1));
@@ -27,8 +27,10 @@
       return (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"flex-end", zIndex:2000 }} onClick={onClose}>
           <div style={{ background:"#111", width:"100%", borderRadius:"14px 14px 0 0", padding:"20px 16px 32px" }} onClick={e => e.stopPropagation()}>
+            {label && <div style={{ ...cond, fontSize:15, letterSpacing:3, color:"#888", textAlign:"center", marginBottom:10, fontWeight:700 }}>{label}</div>}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, minHeight:56, background:"#0a0a0a", borderRadius:6, border:`1px solid #333` }}>
               <span style={{ ...mono, fontSize:40, fontWeight:700, color: val ? "#fff" : "#555", letterSpacing:2 }}>{val || "—"}</span>
+              {unit && <span style={{ ...mono, fontSize:22, fontWeight:700, color:"#666", marginLeft:8 }}>{unit}</span>}
             </div>
             <div style={{ display:"flex", gap:8, marginBottom:8 }}>
               {["1","2","3"].map(d => <button key={d} style={btnStyle()} onClick={() => press(d)}>{d}</button>)}
@@ -40,7 +42,7 @@
               {["7","8","9"].map(d => <button key={d} style={btnStyle()} onClick={() => press(d)}>{d}</button>)}
             </div>
             <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-              <button style={btnStyle(RED)} onClick={onDelete}>✕</button>
+              <button style={{ ...btnStyle(RED), fontSize: deleteLabel ? 16 : 26 }} onClick={onDelete}>{deleteLabel || "✕"}</button>
               <button style={btnStyle()} onClick={() => press("0")}>0</button>
               <button style={btnStyle("#aaa")} onClick={back}>⌫</button>
             </div>
@@ -77,10 +79,11 @@
     }
 
     // ─── ExRow ───────────────────────────────────────────────────────────────────
-    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onRepAdded, onToggleDone }) {
+    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onRepAdded, onToggleDone, onSetWeight }) {
       const [dialIdx, setDialIdx] = useState(null);
       const [pendingNewRep, setPendingNewRep] = useState(false);
       const [confirmDelete, setConfirmDelete] = useState(false);
+      const [weightOpen, setWeightOpen] = useState(false);
       const openDial = (i) => { if (!disabled) setDialIdx(i); };
       const closeDial = () => { setDialIdx(null); setPendingNewRep(false); };
       const confirmRep = (v) => { if (dialIdx !== null) { onSetRep(dialIdx, v); setDialIdx(null); setPendingNewRep(false); } };
@@ -126,6 +129,12 @@
               {ex.done && <span style={{ color:BG, fontSize:18, fontWeight:700, lineHeight:1 }}>✓</span>}
             </button>
             <button onClick={onOpenModal} style={{ flex:1, background:"#1a1a1a", border:`1px solid #333`, color:"#e0e0e0", padding:"9px 12px", fontSize:14, ...cond, borderRadius:3, outline:"none", textAlign:"left", cursor:"pointer", fontWeight:500 }}>{ex.name}</button>
+            {onSetWeight && (() => {
+              const hasWeight = typeof ex.weight === 'number' && ex.weight > 0;
+              return (
+                <button onClick={() => !disabled && setWeightOpen(true)} title={hasWeight ? `${ex.weight} kg additional weight` : "Add weight (optional)"} style={{ height:38, flexShrink:0, padding:"0 10px", background: hasWeight ? "#141a05" : "#151515", border:`1px solid ${hasWeight ? ACC : "#333"}`, color: hasWeight ? ACC : "#777", borderRadius:3, cursor: disabled ? "default" : "pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasWeight ? `${ex.weight}kg` : "+KG"}</button>
+              );
+            })()}
             {canDelete && <button onClick={() => setConfirmDelete(true)} title="Delete" style={{ width:38, height:38, background:CARD, border:`1px solid #444`, color:"#ff6b6b", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>}
           </div>
           <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", opacity: ex.done ? 1 : 0.4 }}>
@@ -151,6 +160,17 @@
               onConfirm={handleConfirmRep}
               onDelete={deleteRep}
               onClose={closeDial}
+            />
+          )}
+          {weightOpen && (
+            <DialPad
+              initialValue={typeof ex.weight === 'number' && ex.weight > 0 ? ex.weight : ""}
+              label={`${ex.name} — WEIGHT`}
+              unit="KG"
+              deleteLabel="BODYWEIGHT"
+              onConfirm={(v) => { if (onSetWeight) onSetWeight(v); setWeightOpen(false); }}
+              onDelete={() => { if (onSetWeight) onSetWeight(0); setWeightOpen(false); }}
+              onClose={() => setWeightOpen(false)}
             />
           )}
           {confirmDelete && (

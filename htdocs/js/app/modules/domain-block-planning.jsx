@@ -43,7 +43,20 @@
         schedule,
         routineDay: routineDays.includes(rawRoutineDay) ? rawRoutineDay : routineDays[0],
         exerciseNames,
+        exerciseWeights: normalizeExerciseWeights(template.exerciseWeights, exerciseNames),
       };
+    }
+
+    // WHY: Weight is an optional per-exercise default; keep only positive numbers for names still present.
+    function normalizeExerciseWeights(weights, exerciseNames) {
+      const src = weights && typeof weights === "object" ? weights : {};
+      const names = normalizeExerciseNames(exerciseNames);
+      const out = {};
+      names.forEach((name) => {
+        const w = Number(src[name]);
+        if (Number.isFinite(w) && w > 0) out[name] = w;
+      });
+      return out;
     }
 
     function normalizeExerciseNames(names) {
@@ -164,26 +177,28 @@
     function cloneSuggestedExercises(exercises) {
       return (exercises || []).map((ex) => {
         const reps = (Array.isArray(ex?.reps) ? ex.reps : []).filter((v) => typeof v === "number" && v > 0);
-        return {
+        const cloned = {
           name: ex?.name || "Pull-ups",
           target: reps[0] || ex?.target || 10,
           reps: [],
           suggestedReps: reps,
           done: false,
         };
+        if (typeof ex?.weight === "number" && ex.weight > 0) cloned.weight = ex.weight;
+        return cloned;
       });
     }
 
-    function buildTemplateExercises({ template, fallbackNames, fallbackSingle, lastTargets, lastMatchingBlock }) {
+    function buildTemplateExercises({ template, fallbackNames, fallbackSingle, lastTargets, lastMatchingBlock, lastWeights }) {
       const hasConfiguredNames = template?.exerciseNames?.length > 0;
       if (hasConfiguredNames) {
-        return mkExFromTargets(template.exerciseNames, lastTargets || {});
+        return mkExFromTargets(template.exerciseNames, lastTargets || {}, lastWeights || {}, template.exerciseWeights || {});
       }
       if ((lastMatchingBlock?.exercises || []).length) {
         return cloneSuggestedExercises(lastMatchingBlock.exercises);
       }
       const names = resolveTemplateExerciseNames({ template, fallbackNames, fallbackSingle });
-      return mkExFromTargets(names, lastTargets || {});
+      return mkExFromTargets(names, lastTargets || {}, lastWeights || {});
     }
 
     function namesMatchTemplate(block, template) {
@@ -285,22 +300,41 @@
 
     // ─── BlockPlanEditor UI components ──────────────────────────────────────────
 
-    function TemplateExerciseEditor({ exerciseNames, onPick, onRemove }) {
+    function TemplateExerciseEditor({ exerciseNames, exerciseWeights, onPick, onRemove, onSetWeight }) {
       const names = normalizeExerciseNames(exerciseNames);
+      const weights = exerciseWeights && typeof exerciseWeights === "object" ? exerciseWeights : {};
+      const [weightFor, setWeightFor] = useState(null);
+      const activeWeight = weightFor != null ? Number(weights[weightFor]) : NaN;
 
       return (
         <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid #20303e` }}>
           <div style={{ ...lbl9, fontSize:12, color:"#8eb0c8", marginBottom:8 }}>EXERCISES</div>
-          {names.map((name, idx) => (
-            <div key={idx} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
-              <button
-                onClick={() => onPick(idx)}
-                style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"9px 10px", borderRadius:3, cursor:"pointer", fontSize:16, textAlign:"left", boxSizing:"border-box", ...cond, fontWeight:700 }}
-              >{name}</button>
-              <button onClick={() => onRemove(idx)} title="Remove exercise" style={{ width:36, height:36, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1 }}>×</button>
-            </div>
-          ))}
+          {names.map((name, idx) => {
+            const w = Number(weights[name]);
+            const hasW = Number.isFinite(w) && w > 0;
+            return (
+              <div key={idx} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
+                <button
+                  onClick={() => onPick(idx)}
+                  style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"9px 10px", borderRadius:3, cursor:"pointer", fontSize:16, textAlign:"left", boxSizing:"border-box", ...cond, fontWeight:700 }}
+                >{name}</button>
+                <button onClick={() => setWeightFor(name)} title={hasW ? `${w} kg default weight` : "Set default weight (optional)"} style={{ height:36, flexShrink:0, padding:"0 10px", background: hasW ? "#141a05" : "#151515", border:`1px solid ${hasW ? ACC : "#333"}`, color: hasW ? ACC : "#777", borderRadius:3, cursor:"pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasW ? `${w}kg` : "+KG"}</button>
+                <button onClick={() => onRemove(idx)} title="Remove exercise" style={{ width:36, height:36, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1 }}>×</button>
+              </div>
+            );
+          })}
           <button onClick={() => onPick(null)} style={{ width:"100%", padding:10, background:"#0b1118", border:`1px dashed #2a3a4a`, color:"#8eb0c8", borderRadius:4, cursor:"pointer", fontSize:15, ...cond }}>+ ADD EXERCISE</button>
+          {weightFor != null && (
+            <DialPad
+              initialValue={Number.isFinite(activeWeight) && activeWeight > 0 ? activeWeight : ""}
+              label={`${weightFor} — DEFAULT WEIGHT`}
+              unit="KG"
+              deleteLabel="BODYWEIGHT"
+              onConfirm={(v) => { onSetWeight(weightFor, v); setWeightFor(null); }}
+              onDelete={() => { onSetWeight(weightFor, 0); setWeightFor(null); }}
+              onClose={() => setWeightFor(null)}
+            />
+          )}
         </div>
       );
     }
@@ -336,7 +370,7 @@
     }
 
     // WHY: Isolated sub-component so each block-type row stays readable.
-    function TemplateRow({ template, routine, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise }) {
+    function TemplateRow({ template, routine, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight }) {
       const routineDays = routineDayLabels(routine);
       return (
         <div
@@ -366,8 +400,10 @@
           </div>
           <TemplateExerciseEditor
             exerciseNames={template.exerciseNames}
+            exerciseWeights={template.exerciseWeights}
             onPick={(exerciseIdx) => onPickExercise(template.id, exerciseIdx)}
             onRemove={(exerciseIdx) => onRemoveExercise(template.id, exerciseIdx)}
+            onSetWeight={(name, kg) => onSetExerciseWeight(template.id, name, kg)}
           />
         </div>
       );
@@ -446,6 +482,14 @@
           exerciseNames: normalizeExerciseNames(template.exerciseNames).filter((_, idx) => idx !== exerciseIdx),
         });
       };
+      const setTemplateExerciseWeight = (templateId, name, kg) => {
+        const template = plan.templates.find((t) => t.id === templateId);
+        if (!template) return;
+        const weights = { ...(template.exerciseWeights || {}) };
+        const w = Number(kg);
+        if (Number.isFinite(w) && w > 0) weights[name] = w; else delete weights[name];
+        updateTemplate(templateId, { exerciseWeights: weights });
+      };
       const selectTemplateExercise = (exerciseName) => {
         if (!exercisePicker) return;
         const template = plan.templates.find((t) => t.id === exercisePicker.templateId);
@@ -468,7 +512,8 @@
               onRemove={() => removeTemplate(t.id)}
               canRemove={plan.templates.length > 1}
               onPickExercise={(templateId, exerciseIdx) => setExercisePicker({ templateId, exerciseIdx })}
-              onRemoveExercise={removeTemplateExercise} />
+              onRemoveExercise={removeTemplateExercise}
+              onSetExerciseWeight={setTemplateExerciseWeight} />
           ))}
           <button onClick={addTemplate} style={{ width:"100%", padding:12, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:17, ...cond, marginBottom:4 }}>+ ADD BLOCK TYPE</button>
           <div style={{ ...mono, fontSize:12, color:"#666", marginBottom:4 }}>Routine blocks rotate by letter. Always blocks are offered every day.</div>
@@ -506,9 +551,10 @@
 
     // WHY: Keep block instantiation isolated so future template attributes can be added without touching App.
     function buildTrainingBlocks(templates, fallbackNames, lastTargets, priorSessions) {
+      const lastWeights = lastWeightsFromSessions(priorSessions || []);
       if (!templates.length) {
         const names = fallbackNames.length ? fallbackNames : ["Pull-ups"];
-        return [mkBlock(mkExFromTargets(names, lastTargets), "Training Block")];
+        return [mkBlock(mkExFromTargets(names, lastTargets, lastWeights), "Training Block")];
       }
       return templates.map((template) => {
         const lastMatchingBlock = findLastMatchingBlock(priorSessions, template);
@@ -518,6 +564,7 @@
           fallbackSingle: "Pull-ups",
           lastTargets,
           lastMatchingBlock,
+          lastWeights,
         });
         return mkBlock(exercises, template.name, template.id);
       });

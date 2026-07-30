@@ -145,7 +145,7 @@
     }
 
     // ─── ExercisesSection ────────────────────────────────────────────────────────
-    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onComplete, onRepAdded, onToggleDone, showComplete }) {
+    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onComplete, onRepAdded, onToggleDone, onSetWeight, showComplete }) {
       const iconBtn = (icon, label, onClick, opts = {}) => (
         <button onClick={onClick} title={label} style={{
           flex:1, height:56, background:"transparent",
@@ -169,6 +169,7 @@
               onAddRep={() => onAddRep(ei)}
               onRepAdded={onRepAdded}
               onToggleDone={() => onToggleDone(ei)}
+              onSetWeight={onSetWeight ? (w => onSetWeight(ei, w)) : undefined}
               canDelete={exercises.length > 1}
             />
           ))}
@@ -187,7 +188,7 @@
     function BlockCard({ block, index, onSetRep, onDelRep, onAddExercise, onOpenModal,
                          onDeleteExercise, onAddRep, onRepAdded, onToggleExDone, onCheck, onUncheck,
                          onToggleCollapse, onEditStart, canDeleteBlock, onDeleteBlock,
-                         canResetToTemplate, onResetToTemplate }) {
+                         canResetToTemplate, onResetToTemplate, onSetWeight }) {
       const [confirmDel, setConfirmDel] = useState(false);
       const [confirmReset, setConfirmReset] = useState(false);
       const checked = block.startedAt !== null;
@@ -235,6 +236,7 @@
                   onAddRep={() => onAddRep(ei)}
                   onRepAdded={onRepAdded}
                   onToggleDone={() => onToggleExDone(ei)}
+                  onSetWeight={onSetWeight ? (w => onSetWeight(ei, w)) : undefined}
                   canDelete={block.exercises.length > 1}
                 />
               ))}

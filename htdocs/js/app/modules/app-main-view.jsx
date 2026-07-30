@@ -91,6 +91,7 @@
                         onDeleteExercise={onMornDelEx}
                         onAddRep={onMornAddRep}
                         onToggleDone={onMornToggleDone}
+                        onSetWeight={onMornSetWeight}
                         onComplete={toggleMorningComplete}
                         onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
                         showComplete={!mornDone}
@@ -132,6 +133,7 @@
                   onAddRep={(ei) => onBlkAddRep(bi,ei)}
                   onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
                   onToggleExDone={(ei) => onBlkExDone(bi,ei)}
+                  onSetWeight={(ei,w) => onBlkSetWeight(bi,ei,w)}
                   onCheck={() => onCheckBlock(bi)}
                   onUncheck={() => onUncheckBlock(bi)}
                   onToggleCollapse={() => onBlkCollapse(bi)}

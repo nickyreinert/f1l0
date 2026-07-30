@@ -198,6 +198,7 @@
       const onBlkAddRep   = (bi,ei)      => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutAddRep(E,ei)));
       const onBlkExName   = (bi,ei,nm)   => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutName(E,ei,nm)));
       const onBlkExDone   = (bi,ei)      => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutToggleDone(E,ei)));
+      const onBlkSetWeight= (bi,ei,w)    => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutSetWeight(E,ei,w)));
       const onCheckBlock  = (bi)         => commitBlocks(mutCheckBlock(trainBlocks,bi,Date.now()));
       const onUncheckBlock= (bi)         => commitBlocks(mutUncheckBlock(trainBlocks,bi));
       const onBlkCollapse = (bi)         => commitBlocks(mutToggleCollapse(trainBlocks,bi));
@@ -211,7 +212,8 @@
         if (!template) return;
         const prior = sessions.filter((s) => s.date < headerDate);
         const lastTargets = lastTargetsFromSessions(prior, headerDate);
-        const resetExercises = buildTemplateExercises({ template, fallbackNames: [], fallbackSingle: "Pull-ups", lastTargets });
+        const lastWeights = lastWeightsFromSessions(prior, headerDate);
+        const resetExercises = buildTemplateExercises({ template, fallbackNames: [], fallbackSingle: "Pull-ups", lastTargets, lastWeights });
         commitBlocks(trainBlocks.map((b, k) => k !== bi ? b : { ...b, exercises: resetExercises }));
       };
       const canAddBlock   = true;
@@ -257,12 +259,14 @@
         })();
 
         const targets = lastTargetsFromSessions(prior, headerDate);
+        const weights = lastWeightsFromSessions(prior, headerDate);
         const newExercises = buildTemplateExercises({
           template: selectedTemplate,
           fallbackNames: (lastMatchingBlock?.exercises || []).map((ex) => ex.name).filter(Boolean),
           fallbackSingle: "Pull-ups",
           lastTargets: targets,
           lastMatchingBlock,
+          lastWeights: weights,
         });
 
         const newBlock = mkBlock(newExercises, selectedTemplate.name, selectedTemplate.id);
@@ -278,6 +282,7 @@
       const onMornDelEx  = (ei)      => { const n=mutDelEx(mornExercises,ei);        setMornExercises(n); saveMorn(n); };
       const onMornAddRep = (ei)      => { const n=mutAddRep(mornExercises,ei);       setMornExercises(n); saveMorn(n); };
       const onMornToggleDone = (ei)  => { const n=mutToggleDone(mornExercises,ei);   setMornExercises(n); saveMorn(n); };
+      const onMornSetWeight = (ei,w) => { const n=mutSetWeight(mornExercises,ei,w);   setMornExercises(n); saveMorn(n); };
       const onToggleMornCollapse = () => {
         const next = !mornCollapsed;
         setMornCollapsed(next);
@@ -305,16 +310,22 @@
         // Look up last logged reps for this exercise name from history
         const prior = sessions.filter(s => s.date < headerDate);
         const lt = lastTargetsFromSessions(prior, headerDate);
+        const lw = lastWeightsFromSessions(prior, headerDate);
         const lastReps = lt[exName];
+        const lastWeight = lw[exName];
 
         // Apply name + historical reps suggestion (only if exercise not yet done today)
         const applyEx = (ex) => {
           const base = { ...ex, name: exName };
           const hasEnteredReps = (Array.isArray(ex.reps) ? ex.reps : []).some((v) => typeof v === "number" && v > 0);
-          if (!ex.done && !hasEnteredReps && lastReps && lastReps.length) {
-            return { ...base, target: lastReps[0], reps: [], suggestedReps: lastReps };
+          const result = (!ex.done && !hasEnteredReps && lastReps && lastReps.length)
+            ? { ...base, target: lastReps[0], reps: [], suggestedReps: lastReps }
+            : { ...base, suggestedReps: [] };
+          // Carry over last logged weight unless the exercise already has one.
+          if (!ex.done && typeof result.weight !== "number" && typeof lastWeight === "number" && lastWeight > 0) {
+            result.weight = lastWeight;
           }
-          return { ...base, suggestedReps: [] };
+          return result;
         };
 
         if (section === "morn") {

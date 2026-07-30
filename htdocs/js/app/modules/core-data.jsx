@@ -161,6 +161,24 @@
         }));
       return out;
     }
+
+    // Most recently logged additional weight (kg) per exercise name. Weight is an
+    // optional per-exercise attribute — bodyweight exercises simply carry none.
+    function lastWeightsFromSessions(sessions, beforeDate) {
+      const out = {};
+      const collect = (exs) => (exs || []).forEach(ex => {
+        if (!(ex.name in out) && typeof ex.weight === 'number' && ex.weight > 0) out[ex.name] = ex.weight;
+      });
+      [...sessions]
+        .filter(s => !beforeDate || s.date < beforeDate)
+        .sort((a,b) => b.date.localeCompare(a.date))
+        .forEach(s => {
+          (Array.isArray(s.trainBlocks) ? s.trainBlocks : []).forEach(b => collect(b.exercises));
+          collect(s.exercises);
+          collect(s.mornExercises);
+        });
+      return out;
+    }
     const lastSession = sessions => [...(sessions||[])].sort((a,b) => a.date.localeCompare(b.date)).pop() || null;
 
     function calcTopExercises(sessions) {
@@ -248,7 +266,9 @@
       const result = [];
       (blocks || []).forEach(b => (b.exercises || []).forEach(ex => {
         const reps = (Array.isArray(ex.reps) ? ex.reps : []).filter(v => typeof v === 'number' && v > 0);
-        result.push({ name: ex.name, target: ex.target || 10, reps, done: ex.done || false });
+        const flat = { name: ex.name, target: ex.target || 10, reps, done: ex.done || false };
+        if (typeof ex.weight === 'number' && ex.weight > 0) flat.weight = ex.weight;
+        result.push(flat);
       }));
       return result;
     }
@@ -261,11 +281,19 @@
       return [{ id: mkBlockId(), label: null, templateId: null, exercises: exs.length ? exs : [mkEx("Pull-ups")], startedAt: null, collapsed: false }];
     }
 
-    function mkExFromTargets(exNames, lt) {
+    function mkExFromTargets(exNames, lt, lastWeights = {}, templateWeights = {}) {
       return (exNames || []).map(name => {
         const prev = lt[name];
         const reps = Array.isArray(prev) && prev.length ? prev : [];
-        return { name, target: reps[0] || 10, reps: [], suggestedReps: reps, done: false };
+        // Last logged weight takes precedence over the configured template weight.
+        const carried = lastWeights[name];
+        const configured = templateWeights[name];
+        const weight = (typeof carried === 'number' && carried > 0) ? carried
+                     : (typeof configured === 'number' && configured > 0) ? configured
+                     : undefined;
+        const ex = { name, target: reps[0] || 10, reps: [], suggestedReps: reps, done: false };
+        if (typeof weight === 'number') ex.weight = weight;
+        return ex;
       });
     }
 
@@ -279,6 +307,13 @@
     // ─── Exercise mutators (schema 3 — flat array) ───────────────────────────────
     const mutSetRep = (E,ei,si,v) => E.map((ex,k)=>k!==ei?ex:{...ex,reps:ex.reps.map((r,l)=>l===si?v:r)});
     const mutDelRep = (E,ei,si)   => E.map((ex,k)=>k!==ei?ex:{...ex,reps:ex.reps.filter((_,l)=>l!==si)});
+    // Optional additional weight (kg). A value <= 0 clears it back to bodyweight.
+    const mutSetWeight = (E,ei,w) => E.map((ex,k)=>{
+      if (k!==ei) return ex;
+      const next = {...ex};
+      if (typeof w === 'number' && w > 0) next.weight = w; else delete next.weight;
+      return next;
+    });
     const mutAddEx  = (E)         => [...E, mkEx()];
     const mutDelEx  = (E,ei)      => E.filter((_,k)=>k!==ei);
     const mutAddRep = (E,ei)      => E.map((ex,k)=> {
