@@ -212,6 +212,56 @@
       return Array.from({ length: 28 }, (_,i) => ({ date: dateOffsetStr(27-i), entry: map[dateOffsetStr(27-i)] || null }));
     }
 
+    // ─── LLM training-evaluation export ──────────────────────────────────────────
+    // Builds a compact CSV journal plus a ready-to-use prompt asking an LLM to
+    // evaluate the training. Kept intentionally terse (no JSON overhead).
+    function buildLlmExport(sessions, body) {
+      const b = body || {};
+      const esc = (v) => {
+        const s = String(v ?? "").trim();
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      };
+
+      const rows = [];
+      [...(sessions || [])].sort((a, c) => a.date.localeCompare(c.date)).forEach((s) => {
+        const day = s.routineDayLetter || s.type || "";
+        const rec = s.isRecoveryDay ? 1 : 0;
+        const addRow = (section, ex) => {
+          const reps = (Array.isArray(ex.reps) ? ex.reps : []).filter((v) => typeof v === "number" && v > 0);
+          if (!reps.length) return;
+          const total = reps.reduce((x, v) => x + v, 0);
+          const w = typeof ex.weight === "number" && ex.weight > 0 ? ex.weight : "";
+          rows.push([s.date, day, rec, section, esc(ex.name), w, reps.length, total, reps.join("|")].join(","));
+        };
+        (s.mornExercises || []).forEach((ex) => addRow("morn", ex));
+        (s.exercises || []).forEach((ex) => addRow("train", ex));
+      });
+
+      const prompt = [
+        "You are an experienced strength & conditioning coach specialising in calisthenics and grease-the-groove training.",
+        "Evaluate the training journal below. Assess overall progress and volume trends, balance across movement patterns (push / pull / legs / core), training frequency and recovery, and whether the current approach fits the athlete's body data and goal.",
+        "Then give concrete, prioritised recommendations: what to keep, what to change (exercise selection, reps / sets, added weight, frequency, rest), and any red flags.",
+        "Be specific and reference the numbers.",
+        "",
+      ].join("\n");
+
+      const athlete = [
+        "ATHLETE",
+        "sex,height_cm,weight_kg,age,goal",
+        [esc(b.sex), esc(b.height), esc(b.weight), esc(b.age), esc(b.goal)].join(","),
+        "",
+      ].join("\n");
+
+      const log = [
+        "TRAINING LOG (one row per exercise per day; reps within the day separated by |)",
+        "date,day,recovery,section,exercise,weight_kg,sets,total_reps,reps",
+        ...(rows.length ? rows : ["(no logged training yet)"]),
+      ].join("\n");
+
+      return prompt + athlete + log + "\n";
+    }
+
+
     function sessionCountsForHeatmap(session) {
       if (!session) return false;
       if (session.done || session.mornDone) return true;

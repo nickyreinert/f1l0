@@ -34,6 +34,10 @@
       const [exerciseImages, setExerciseImages] = useState({});
       const [supplements, setSupplements]   = useState([]);
       const [tmpSupplements, setTmpSupplements] = useState([]);
+      // Body data for the LLM training-evaluation export. Stored in cfg → cloud-synced.
+      const emptyBodyData = { sex: "", height: "", weight: "", age: "", goal: "" };
+      const [bodyData, setBodyData]         = useState(emptyBodyData);
+      const [tmpBodyData, setTmpBodyData]   = useState(emptyBodyData);
       const [suppDeleteConfirm, setSuppDeleteConfirm] = useState(null);
       const [suppDragIdx, setSuppDragIdx]     = useState(null);
       const [suppDragOver, setSuppDragOver]   = useState(null);
@@ -82,6 +86,8 @@
           setExerciseImages(imgs);
           const supp = cfg.supplements || [];
           setSupplements(supp); setTmpSupplements(supp);
+          const bd = { ...emptyBodyData, ...(cfg.bodyData || {}) };
+          setBodyData(bd); setTmpBodyData(bd);
 
           const t = todayStr();
           const prior = all.filter(s => s.date !== t);

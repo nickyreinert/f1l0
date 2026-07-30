@@ -1,6 +1,11 @@
       // ─── Tabbed views (protocol / stats / settings / data) ──────────────────
-      const [view, setView] = useState("protocol");
+      const VIEWS = ["protocol", "stats", "settings", "data"];
+      const [view, setView] = useState(() => {
+        const h = location.hash.replace(/^#/, "");
+        return VIEWS.includes(h) ? h : "protocol";
+      });
       const [copyOk, setCopyOk]     = useState(false);
+      const [llmCopied, setLlmCopied] = useState(false);
       const [importJson, setImportJson] = useState("");
       const [importErr, setImportErr]   = useState("");
       const [cloudState, setCloudState] = useState({ ...window._authState });
@@ -47,6 +52,22 @@
         return () => window.removeEventListener("authStateChanged", h);
       }, []);
 
+      // Reflect the active section in the URL hash so a reload lands on the same tab.
+      useEffect(() => {
+        if (location.hash.replace(/^#/, "") !== view) {
+          history.replaceState(null, "", "#" + view);
+        }
+      }, [view]);
+      // React to manual hash changes / browser back-forward navigation.
+      useEffect(() => {
+        const onHash = () => {
+          const h = location.hash.replace(/^#/, "");
+          if (VIEWS.includes(h)) setView(h);
+        };
+        window.addEventListener("hashchange", onHash);
+        return () => window.removeEventListener("hashchange", onHash);
+      }, []);
+
       useEffect(() => {
         const guard = (e) => {
           if (window._authState?.syncing) { e.preventDefault(); e.returnValue = "Sync still running."; }
@@ -68,6 +89,29 @@
           const json = await exportData();
           try { await navigator.clipboard.writeText(json); setCopyOk(true); setTimeout(() => setCopyOk(false), 2500); }
           catch { setImportJson(json); setImportErr("Clipboard blocked — JSON pasted below"); }
+        };
+        const bodyInputStyle = { width:"100%", background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"10px", borderRadius:3, outline:"none", fontSize:16, boxSizing:"border-box" };
+        // Data view has no explicit SAVE, so persist body data to the cloud-synced cfg on edit.
+        const persistBodyData = async (next) => {
+          setBodyData(next);
+          const cfg = await load("cfg");
+          await save("cfg", { ...(cfg||{}), bodyData: next });
+        };
+        const handleLlmExport = async () => {
+          const text = buildLlmExport(sessions, tmpBodyData);
+          // Persist body data so it rides along with the cloud-synced cfg.
+          const cfg = await load("cfg");
+          await save("cfg", { ...(cfg||{}), bodyData: tmpBodyData });
+          setBodyData(tmpBodyData);
+          try {
+            await navigator.clipboard.writeText(text);
+            setLlmCopied(true); setTimeout(() => setLlmCopied(false), 3000);
+          } catch {
+            const blob = new Blob([text], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a"); a.href = url; a.download = "training-evaluation.txt"; a.click();
+            URL.revokeObjectURL(url);
+          }
         };
         const handleImport = async () => {
           setImportErr("");
@@ -337,6 +381,46 @@
                       </div>
                     )}
                   </>}
+                  <div style={{ background:"#0d1014", border:`1px solid #1d2530`, borderRadius:8, padding:"14px 14px 12px", marginBottom:14 }}>
+                    <div style={{ ...lbl9, marginBottom:6, fontSize:14, color:"#9ed5ff" }}>BODY DATA</div>
+                    <div style={{ ...mono, fontSize:14, color:"#6f8ea3", marginBottom:12 }}>Used for the training evaluation export. Synced to cloud.</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+                      <div>
+                        <div style={{ ...lbl9, marginBottom:4 }}>SEX</div>
+                        <select value={tmpBodyData.sex} onChange={e => { const n = { ...tmpBodyData, sex: e.target.value }; setTmpBodyData(n); persistBodyData(n); }} style={{ ...bodyInputStyle, cursor:"pointer" }}>
+                          <option value="">—</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ ...lbl9, marginBottom:4 }}>AGE</div>
+                        <input type="number" inputMode="numeric" value={tmpBodyData.age} onChange={e => setTmpBodyData({ ...tmpBodyData, age: e.target.value })} onBlur={() => persistBodyData(tmpBodyData)} placeholder="years" style={bodyInputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ ...lbl9, marginBottom:4 }}>HEIGHT (CM)</div>
+                        <input type="number" inputMode="numeric" value={tmpBodyData.height} onChange={e => setTmpBodyData({ ...tmpBodyData, height: e.target.value })} onBlur={() => persistBodyData(tmpBodyData)} placeholder="cm" style={bodyInputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ ...lbl9, marginBottom:4 }}>WEIGHT (KG)</div>
+                        <input type="number" inputMode="decimal" value={tmpBodyData.weight} onChange={e => setTmpBodyData({ ...tmpBodyData, weight: e.target.value })} onBlur={() => persistBodyData(tmpBodyData)} placeholder="kg" style={bodyInputStyle} />
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ ...lbl9, marginBottom:4 }}>TRAINING GOAL</div>
+                      <input type="text" value={tmpBodyData.goal} onChange={e => setTmpBodyData({ ...tmpBodyData, goal: e.target.value })} onBlur={() => persistBodyData(tmpBodyData)} placeholder="e.g. build muscle, first muscle-up, lose fat" style={bodyInputStyle} />
+                    </div>
+                  </div>
+
+                  <div style={{ background:"#0d140f", border:`1px solid #1d3326`, borderRadius:8, padding:"14px 14px 12px", marginBottom:28 }}>
+                    <div style={{ ...lbl9, marginBottom:6, fontSize:14, color:"#9ed5b8" }}>TRAINING EVALUATION EXPORT</div>
+                    <div style={{ ...mono, fontSize:14, color:"#6fa384", marginBottom:12 }}>Compact CSV journal + a ready-to-use prompt asking an LLM to evaluate your training. Paste it into ChatGPT, Claude, etc.</div>
+                    <button onClick={handleLlmExport} style={{ width:"100%", padding:16, background: llmCopied ? "#1a3a00" : CARD, border:`1px solid ${llmCopied ? "#3a8a10" : BDR}`, color: llmCopied ? ACC : "#ccc", fontSize:14, fontWeight:700, letterSpacing:2, borderRadius:4, cursor:"pointer", ...cond }}>
+                      {llmCopied ? "✓ COPIED — PASTE INTO YOUR LLM" : "COPY TRAINING + PROMPT → LLM"}
+                    </button>
+                  </div>
+
                   <div style={{ ...lbl9, marginBottom:14 }}>EXPORT</div>
                   <button onClick={handleCopy} style={{ width:"100%", padding:16, background: copyOk ? "#1a3a00" : CARD, border:`1px solid ${copyOk ? "#3a8a10" : BDR}`, color: copyOk ? ACC : "#ccc", fontSize:14, fontWeight:700, letterSpacing:2, borderRadius:4, cursor:"pointer", ...cond, marginBottom:6 }}>
                     {copyOk ? "✓ COPIED TO CLIPBOARD" : "COPY DATA → JSON"}
