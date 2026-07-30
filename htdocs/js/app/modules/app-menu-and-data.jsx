@@ -6,6 +6,8 @@
       });
       const [copyOk, setCopyOk]     = useState(false);
       const [llmCopied, setLlmCopied] = useState(false);
+      const [setupJson, setSetupJson] = useState("");
+      const [setupMsg, setSetupMsg]   = useState("");
       const [importJson, setImportJson] = useState("");
       const [importErr, setImportErr]   = useState("");
       const [cloudState, setCloudState] = useState({ ...window._authState });
@@ -98,7 +100,7 @@
           await save("cfg", { ...(cfg||{}), bodyData: next });
         };
         const handleLlmExport = async () => {
-          const text = buildLlmExport(sessions, tmpBodyData);
+          const text = buildLlmExport(sessions, tmpBodyData, blockPlan);
           // Persist body data so it rides along with the cloud-synced cfg.
           const cfg = await load("cfg");
           await save("cfg", { ...(cfg||{}), bodyData: tmpBodyData });
@@ -111,6 +113,16 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a"); a.href = url; a.download = "training-evaluation.txt"; a.click();
             URL.revokeObjectURL(url);
+          }
+        };
+        const handleSetupImport = async () => {
+          setSetupMsg("");
+          try {
+            const n = await importTrainingSetup(setupJson);
+            setSetupMsg("✓ " + n + " block" + (n === 1 ? "" : "s") + " imported");
+            setSetupJson("");
+          } catch (err) {
+            setSetupMsg("Error: " + err.message);
           }
         };
         const handleImport = async () => {
@@ -418,6 +430,16 @@
                     <div style={{ ...mono, fontSize:14, color:"#6fa384", marginBottom:12 }}>Compact CSV journal + a ready-to-use prompt asking an LLM to evaluate your training. Paste it into ChatGPT, Claude, etc.</div>
                     <button onClick={handleLlmExport} style={{ width:"100%", padding:16, background: llmCopied ? "#1a3a00" : CARD, border:`1px solid ${llmCopied ? "#3a8a10" : BDR}`, color: llmCopied ? ACC : "#ccc", fontSize:14, fontWeight:700, letterSpacing:2, borderRadius:4, cursor:"pointer", ...cond }}>
                       {llmCopied ? "✓ COPIED — PASTE INTO YOUR LLM" : "COPY TRAINING + PROMPT → LLM"}
+                    </button>
+                  </div>
+
+                  <div style={{ background:"#0d0f14", border:`1px solid #24283a`, borderRadius:8, padding:"14px 14px 12px", marginBottom:28 }}>
+                    <div style={{ ...lbl9, marginBottom:6, fontSize:14, color:"#b6b0e0" }}>IMPORT TRAINING SETUP</div>
+                    <div style={{ ...mono, fontSize:14, color:"#8480a8", marginBottom:12 }}>Paste the JSON block the LLM returned. Matching blocks are updated, new ones added.</div>
+                    <textarea value={setupJson} onChange={e => { setSetupJson(e.target.value); setSetupMsg(""); }} placeholder='Paste { "trainingSetup": { "blocks": [ … ] } } here…' style={{ width:"100%", height:100, background:"#1a1a1a", border:`1px solid ${setupMsg.startsWith("Error") ? RED : BDR}`, color:"#ccc", padding:12, borderRadius:4, outline:"none", resize:"none", ...mono, fontSize:11, boxSizing:"border-box" }} />
+                    {setupMsg && <div style={{ ...mono, fontSize:10, color: setupMsg.startsWith("✓") ? ACC : RED, marginTop:4 }}>{setupMsg}</div>}
+                    <button onClick={handleSetupImport} style={{ width:"100%", padding:16, background: setupJson ? "#12131f" : CARD, border:`1px solid ${setupJson ? "#3a3a6a" : BDR}`, color: setupJson ? "#b6b0e0" : "#555", fontSize:14, fontWeight:700, letterSpacing:2, borderRadius:4, cursor: setupJson ? "pointer" : "default", ...cond, marginTop:8 }}>
+                      IMPORT SETUP
                     </button>
                   </div>
 

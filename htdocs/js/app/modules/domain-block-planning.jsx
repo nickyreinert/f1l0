@@ -1,12 +1,11 @@
     // WHY: Keep planning defaults centralized so new users always start with a sane setup.
     function defaultBlockPlan() {
       return {
+        anchorDate: null,
         templates: [
-          { id: "morning", name: "Morning", schedule: "always", cadenceEvery: 1, exerciseNames: ["Push-ups"] },
-          { id: "workout", name: "Workout", schedule: "routine", routineDay: "A", cadenceEvery: 2, exerciseNames: ["Pull-ups"] },
+          { id: "morning", name: "Morning", everyNDays: 1, repeatCount: 1, pauseDays: 0, exerciseNames: ["Push-ups"] },
+          { id: "workout", name: "Workout", everyNDays: 2, repeatCount: 3, pauseDays: 2, exerciseNames: ["Pull-ups"] },
         ],
-        routine: { dayCount: 2, trainDays: 3, restDays: 1 },
-        restCap: { enabled: true, maxTrainDays: 3, restDays: 1 },
       };
     }
 
@@ -14,34 +13,42 @@
     function normalizeBlockPlan(raw) {
       const fallback = defaultBlockPlan();
       const src = raw && typeof raw === "object" ? raw : {};
-      const templates = Array.isArray(src.templates) && src.templates.length ? src.templates : fallback.templates;
-      const routine = normalizeRoutine(src.routine, src.restCap || fallback.restCap);
-      const normalizedTemplates = normalizeTemplates(templates, routine);
-      const restCap = normalizeRestCap(src.restCap, routine);
+      const templatesSrc = Array.isArray(src.templates) && src.templates.length ? src.templates : fallback.templates;
+      const normalizedTemplates = templatesSrc.map(normalizeTemplate).filter(Boolean);
+      const anchorDate = typeof src.anchorDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(src.anchorDate)
+        ? src.anchorDate
+        : todayStr();
       return {
-        templates: normalizedTemplates,
-        routine,
-        restCap,
+        templates: normalizedTemplates.length ? normalizedTemplates : fallback.templates.map(normalizeTemplate),
+        anchorDate,
       };
     }
 
     // WHY: Enforce minimal template shape so rendering and planning never crash on bad config.
-    function normalizeTemplate(template, routine, routineIdx = 0) {
+    //      Back-compat: legacy templates used { schedule:"always"|"routine", cadenceEvery, routineDay }.
+    //      Map those onto the per-block cadence model { everyNDays, repeatCount, pauseDays }.
+    function normalizeTemplate(template) {
       if (!template || typeof template !== "object") return null;
-      const cadenceEvery = Math.max(1, parseInt(template.cadenceEvery || 1, 10) || 1);
       const exerciseNames = normalizeExerciseNames(template.exerciseNames);
-      const routineDays = routineDayLabels(routine);
-      const legacySchedule = cadenceEvery === 1 ? "always" : "routine";
-      const schedule = template.schedule === "always" || template.schedule === "routine"
-        ? template.schedule
-        : legacySchedule;
-      const rawRoutineDay = String(template.routineDay || routineDays[routineIdx % routineDays.length] || "A").toUpperCase();
+
+      let everyNDays = parseInt(template.everyNDays, 10);
+      let repeatCount = parseInt(template.repeatCount, 10);
+      let pauseDays = parseInt(template.pauseDays, 10);
+      if (!Number.isFinite(everyNDays)) {
+        everyNDays = template.schedule === "always" ? 1 : Math.max(1, parseInt(template.cadenceEvery || 1, 10) || 1);
+      }
+      if (!Number.isFinite(repeatCount)) repeatCount = template.schedule === "always" ? 1 : 3;
+      if (!Number.isFinite(pauseDays)) pauseDays = template.schedule === "always" ? 0 : 1;
+      everyNDays = Math.max(1, everyNDays);
+      repeatCount = Math.max(1, repeatCount);
+      pauseDays = Math.max(0, pauseDays);
+
       return {
-        id: String(template.id || `block_${Date.now()}`),
+        id: String(template.id || `block_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
         name: String(template.name || "Block"),
-        cadenceEvery,
-        schedule,
-        routineDay: routineDays.includes(rawRoutineDay) ? rawRoutineDay : routineDays[0],
+        everyNDays,
+        repeatCount,
+        pauseDays,
         exerciseNames,
         exerciseWeights: normalizeExerciseWeights(template.exerciseWeights, exerciseNames),
       };
@@ -66,94 +73,80 @@
         .filter(Boolean);
     }
 
-    function routineDayLabels(routine) {
-      const count = Math.max(1, Math.min(6, parseInt(routine?.dayCount || 2, 10) || 2));
-      return Array.from({ length: count }, (_, idx) => String.fromCharCode(65 + idx));
+    // ─── Per-block cadence scheduling ────────────────────────────────────────────
+    // Each block-type recurs on its own cycle: offered every `everyNDays`, `repeatCount`
+    // times, then `pauseDays` rest, then repeat. Cycle position counts calendar days from
+    // the plan anchor so pauses progress even on days the app wasn't opened.
+    function templateCycleLen(t) {
+      return Math.max(1, (t.repeatCount * t.everyNDays) + t.pauseDays);
+    }
+    function dayNumber(dateStr) {
+      const ms = new Date(String(dateStr) + "T12:00:00").getTime();
+      return Number.isFinite(ms) ? Math.floor(ms / 86400000) : 0;
+    }
+    function isTemplateActiveOnDate(template, dateStr, anchorDate) {
+      if (!template) return false;
+      const cycle = templateCycleLen(template);
+      const idx = dayNumber(dateStr) - dayNumber(anchorDate || dateStr);
+      const pos = ((idx % cycle) + cycle) % cycle;
+      const activeWindow = template.repeatCount * template.everyNDays;
+      return pos < activeWindow && pos % template.everyNDays === 0;
     }
 
-    function normalizeRoutine(raw, restCapRaw) {
-      const restCap = restCapRaw && typeof restCapRaw === "object" ? restCapRaw : {};
-      const src = raw && typeof raw === "object" ? raw : {};
-      return {
-        dayCount: Math.max(1, Math.min(6, parseInt(src.dayCount || 2, 10) || 2)),
-        trainDays: Math.max(1, parseInt(src.trainDays || restCap.maxTrainDays || 3, 10) || 3),
-        restDays: Math.max(1, parseInt(src.restDays || restCap.restDays || 1, 10) || 1),
-      };
+    // WHY: Templates offered on a given calendar date, per each block's own cadence.
+    function resolveActiveTemplates(templates, dateStr, anchorDate) {
+      return (templates || []).filter((t) => isTemplateActiveOnDate(t, dateStr, anchorDate));
     }
 
-    // WHY: Block-types are independent; legacy cadence-based blocks are mapped onto routine letters in order.
-    function normalizeTemplates(templates, routine) {
-      let routineIdx = 0;
-      return templates.map((t) => {
-        const usesRoutine = t?.schedule === "routine" || (t?.schedule == null && Math.max(1, parseInt(t?.cadenceEvery || 1, 10) || 1) > 1);
-        const normalized = normalizeTemplate(t, routine, usesRoutine ? routineIdx : 0);
-        if (usesRoutine) routineIdx += 1;
-        return normalized;
+    // WHY: A day with no block offered by any template is a pure rest/recovery day.
+    function isRestDayForPlan(plan, dateStr) {
+      const normalized = normalizeBlockPlan(plan);
+      return resolveActiveTemplates(normalized.templates, dateStr, normalized.anchorDate).length === 0;
+    }
+
+    // ─── Import: structured training setup from an LLM ────────────────────────────
+    // Accepts raw text (may contain a ```json fence or surrounding prose) and returns
+    // an array of normalized templates. Tolerant: extracts the first JSON object found.
+    function parseTrainingSetupImport(text) {
+      const raw = String(text || "");
+      let jsonStr = null;
+      const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+      if (fence) jsonStr = fence[1];
+      if (!jsonStr) {
+        const start = raw.indexOf("{");
+        const end = raw.lastIndexOf("}");
+        if (start >= 0 && end > start) jsonStr = raw.slice(start, end + 1);
+      }
+      if (!jsonStr) throw new Error("No JSON found in text");
+      const parsed = JSON.parse(jsonStr);
+      const blocks = Array.isArray(parsed) ? parsed
+        : Array.isArray(parsed.blocks) ? parsed.blocks
+        : Array.isArray(parsed.trainingSetup && parsed.trainingSetup.blocks) ? parsed.trainingSetup.blocks
+        : Array.isArray(parsed.templates) ? parsed.templates
+        : [];
+      return blocks.map((b) => {
+        const exercises = Array.isArray(b.exercises) ? b.exercises : [];
+        const exerciseNames = exercises.map((ex) => (typeof ex === "string" ? ex : ex && ex.name)).filter(Boolean);
+        const exerciseWeights = {};
+        exercises.forEach((ex) => {
+          if (ex && typeof ex === "object" && ex.name) {
+            const w = Number(ex.weight);
+            if (Number.isFinite(w) && w > 0) exerciseWeights[String(ex.name).trim()] = w;
+          }
+        });
+        return normalizeTemplate({
+          id: `imp${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+          name: b.name || b.label || "Imported Block",
+          everyNDays: b.everyNDays != null ? b.everyNDays : (b.every != null ? b.every : 1),
+          repeatCount: b.repeatCount != null ? b.repeatCount : (b.repeat != null ? b.repeat : (b.times != null ? b.times : 3)),
+          pauseDays: b.pauseDays != null ? b.pauseDays : (b.pause != null ? b.pause : 1),
+          exerciseNames,
+          exerciseWeights,
+        });
       }).filter(Boolean);
     }
 
-    // WHY: A global cap guarantees recovery days no matter how many blocks overlap.
-    function normalizeRestCap(raw, routine = null) {
-      const src = raw && typeof raw === "object" ? raw : {};
-      const enabled = src.enabled !== false;
-      const maxTrainDays = Math.max(1, parseInt(routine?.trainDays || src.maxTrainDays || 3, 10) || 3);
-      const restDays = Math.max(1, parseInt(routine?.restDays || src.restDays || 1, 10) || 1);
-      return { enabled, maxTrainDays, restDays };
-    }
-
     // WHY: Each block-type recurs on its own "every Nth training day" cadence, independent of the others.
-    //      Cadence counts real training days (any session with actual training logged), so a recovery
-    //      day pauses — never desyncs — the count. This is the routine ROTATION, unrelated to recovery.
-    function resolveRoutineDay(routine, priorSessions) {
-      const days = routineDayLabels(routine);
-      const trainIndex = (priorSessions || []).filter((s) => sessionHasTraining(s)).length;
-      return days[trainIndex % days.length] || "A";
-    }
-
-    // WHY: `dayType` here is purely a routine letter (A/B/C...), never a recovery flag — recovery is
-    // a fully independent concept (see shouldForcedRecoveryDay). "always" templates are offered every
-    // day regardless of letter; "routine" templates are offered only on their matching letter. There
-    // is no "dailyOnly" mode — hiding routine blocks based on the letter was the root conflation bug.
-    function resolveActiveTemplates(templates, priorSessions, opts = {}) {
-      const activeRoutineDay = opts.dayType || resolveRoutineDay(opts.routine, priorSessions);
-      return (templates || []).filter((t) => {
-        if (t.schedule === "always") return true;
-        return (t.routineDay || "A") === activeRoutineDay;
-      });
-    }
-
-    // WHY: Check if a forced recovery day is needed (based on rest cap)
-    function shouldForcedRecoveryDay({ priorSessions, plan }) {
-      if (!plan) return false;
-      const normalized = normalizeBlockPlan(plan);
-      const cap = normalized.restCap;
-      if (!cap.enabled) return false;
-      const sorted = [...(priorSessions || [])].sort((a, b) => b.date.localeCompare(a.date));
-      let restRun = 0;
-      for (const s of sorted) { if (sessionHasTraining(s)) break; restRun += 1; }
-      if (restRun > 0 && restRun < cap.restDays) return true;   // still inside the forced rest window
-      let trainRun = 0;
-      for (const s of sorted) { if (!sessionHasTraining(s)) break; trainRun += 1; }
-      if (trainRun >= cap.maxTrainDays) return true;            // hit the cap → force a rest day
-      return false;
-    }
-
-    // WHY: A day is rest only when the global cap forces it; otherwise it is a training (rotation) day.
-    function resolveDayTypeWithPlan({ priorSessions, plan, fallbackType }) {
-      if (!plan) return fallbackType || "A";
-      const normalized = normalizeBlockPlan(plan);
-      const cap = normalized.restCap;
-      if (!cap.enabled) return "A";
-      const sorted = [...(priorSessions || [])].sort((a, b) => b.date.localeCompare(a.date));
-      let restRun = 0;
-      for (const s of sorted) { if (sessionHasTraining(s)) break; restRun += 1; }
-      if (restRun > 0 && restRun < cap.restDays) return "B";   // still inside the forced rest window
-      let trainRun = 0;
-      for (const s of sorted) { if (!sessionHasTraining(s)) break; trainRun += 1; }
-      if (trainRun >= cap.maxTrainDays) return "B";            // hit the cap → force a rest day
-      return "A";
-    }
-
     // WHY: Prefer template-configured exercises but gracefully fall back to history to reduce setup friction.
     function resolveTemplateExerciseNames({ template, fallbackNames, fallbackSingle }) {
       if (template?.exerciseNames?.length) return template.exerciseNames;
@@ -251,18 +244,17 @@
       return !(block.exercises || []).some((ex) => (ex?.reps || []).some((v) => typeof v === "number" && v > 0) || ex?.done === true);
     }
 
-    // WHY: isRecovery suppresses "routine"-schedule templates (forced rest per the rest cap),
-    // independent of which routine letter is active — recovery and routine rotation are orthogonal.
-    // Blocks with real data are never dropped regardless (see isUntouchedBlock below).
-    function syncOfferedBlocksFromPlan({ blocks, plan, priorSessions, dayType, isRecovery, lastTargets, fallbackNames, replaceGeneric }) {
+    // WHY: Offers exactly the blocks whose per-block cadence is active on `date`. Blocks with real
+    // data are never dropped (see isUntouchedBlock); untouched blocks of no-longer-active templates
+    // are swapped out for whatever the cadence offers today.
+    function syncOfferedBlocksFromPlan({ blocks, plan, priorSessions, date, lastTargets, fallbackNames, replaceGeneric }) {
       const normalized = normalizeBlockPlan(plan);
       const synced = syncPlannedBlocksFromPlan(blocks, normalized, lastTargets);
-      const allActiveTemplates = resolveActiveTemplates(normalized.templates, priorSessions || [], { dayType, routine: normalized.routine });
-      const activeTemplates = isRecovery ? allActiveTemplates.filter((t) => t.schedule === "always") : allActiveTemplates;
+      const activeTemplates = resolveActiveTemplates(normalized.templates, date, normalized.anchorDate);
       const activeTemplateIds = new Set(activeTemplates.map((t) => t.id));
 
-      // Drop blocks whose template is no longer offered today, but only if untouched —
-      // e.g. an empty "Block 1" (Day A only) makes way for "Block 2" (Day B) on switch.
+      // Drop blocks whose template is not offered today, but only if untouched —
+      // an empty block makes way for whatever the cadence offers today.
       const withoutInactiveEmpty = synced.filter((block) => {
         if (!block?.templateId) return true;
         if (activeTemplateIds.has(block.templateId)) return true;
@@ -339,65 +331,42 @@
       );
     }
 
-    function RoutineEditor({ routine, onChange }) {
-      const days = routineDayLabels(routine);
-      return (
-        <div style={{ background:"#0b141b", border:`1px solid #203546`, borderRadius:8, padding:"12px 12px 10px", marginBottom:12 }}>
-          <div style={{ ...lbl9, fontSize:14, color:"#9ed5ff", marginBottom:10 }}>ROUTINE</div>
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-            <span style={{ ...mono, fontSize:14, color:"#7797aa", minWidth:118 }}>TRAINING DAYS</span>
-            <button onClick={() => onChange({ dayCount: Math.max(1, routine.dayCount - 1) })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>−</button>
-            <span style={{ ...mono, fontSize:28, fontWeight:700, color:"#ddd", minWidth:34, textAlign:"center" }}>{routine.dayCount}</span>
-            <button onClick={() => onChange({ dayCount: Math.min(6, routine.dayCount + 1) })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>+</button>
-            <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-              {days.map((day) => <span key={day} style={{ ...mono, fontSize:14, color:BG, background:ACC, borderRadius:3, padding:"5px 8px", fontWeight:700 }}>{day}</span>)}
-            </div>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-            <span style={{ ...mono, fontSize:14, color:"#7797aa", minWidth:118 }}>TRAIN STREAK</span>
-            <button onClick={() => onChange({ trainDays: Math.max(1, routine.trainDays - 1) })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>−</button>
-            <span style={{ ...mono, fontSize:28, fontWeight:700, color:"#ddd", minWidth:34, textAlign:"center" }}>{routine.trainDays}</span>
-            <button onClick={() => onChange({ trainDays: routine.trainDays + 1 })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>+</button>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ ...mono, fontSize:14, color:"#7797aa", minWidth:118 }}>REST DAYS</span>
-            <button onClick={() => onChange({ restDays: Math.max(1, routine.restDays - 1) })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>−</button>
-            <span style={{ ...mono, fontSize:28, fontWeight:700, color:"#ddd", minWidth:34, textAlign:"center" }}>{routine.restDays}</span>
-            <button onClick={() => onChange({ restDays: routine.restDays + 1 })} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:24 }}>+</button>
-          </div>
+    // WHY: Isolated sub-component so each block-type row stays readable. Each block has its own
+    // cadence: offered every N days, repeated X times, then a pause of P days (repeat/pause only
+    // matter when pause > 0 — with no pause a block simply recurs every N days indefinitely).
+    function TemplateRow({ template, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight }) {
+      const every = template.everyNDays, rep = template.repeatCount, pause = template.pauseDays;
+      const Stepper = ({ label, display, onDec, onInc }) => (
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <span style={{ ...mono, fontSize:12, color:"#7797aa", minWidth:58 }}>{label}</span>
+          <button onClick={onDec} style={{ width:34, height:34, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:20, lineHeight:1 }}>−</button>
+          <span style={{ ...mono, fontSize:19, fontWeight:700, color:"#ddd", minWidth:52, textAlign:"center" }}>{display}</span>
+          <button onClick={onInc} style={{ width:34, height:34, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:20, lineHeight:1 }}>+</button>
         </div>
       );
-    }
-
-    // WHY: Isolated sub-component so each block-type row stays readable.
-    function TemplateRow({ template, routine, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight }) {
-      const routineDays = routineDayLabels(routine);
+      const everyTxt = every === 1 ? "every day" : `every ${every} days`;
+      const summary = pause === 0
+        ? `Offered ${everyTxt} — no pause.`
+        : `Offered ${everyTxt}, ${rep}× then ${pause} day${pause === 1 ? "" : "s"} pause.`;
       return (
-        <div
-          style={{ background:"#101821", border:`1px solid #2a3a4a`, borderRadius:8, padding:"10px 12px", marginBottom:8 }}
-        >
-          <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
+        <div style={{ background:"#101821", border:`1px solid #2a3a4a`, borderRadius:8, padding:"10px 12px", marginBottom:8 }}>
+          <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:10 }}>
             <input value={template.name} onChange={e => onChange({ name: e.target.value })}
               style={{ flex:1, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"10px 12px", borderRadius:3, outline:"none", fontSize:18, ...cond, fontWeight:700, boxSizing:"border-box" }} />
             {canRemove && <button onClick={onRemove} style={{ width:40, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:20 }}>×</button>}
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-            <span style={{ ...mono, fontSize:13, color:"#666", marginRight:4 }}>WHEN</span>
-            <button
-              onClick={() => onChange({ schedule: "always", routineDay: template.routineDay })}
-              style={{ padding:"9px 12px", background: template.schedule === "always" ? ACC : CARD, border:`1px solid ${template.schedule === "always" ? ACC : "#444"}`, color: template.schedule === "always" ? BG : "#bbb", borderRadius:3, cursor:"pointer", ...cond, fontSize:15, fontWeight:700 }}
-            >ALWAYS</button>
-            {routineDays.map((day) => (
-              <button
-                key={day}
-                onClick={() => onChange({ schedule: "routine", routineDay: day })}
-                style={{ width:38, height:38, background: template.schedule === "routine" && template.routineDay === day ? ACC : CARD, border:`1px solid ${template.schedule === "routine" && template.routineDay === day ? ACC : "#444"}`, color: template.schedule === "routine" && template.routineDay === day ? BG : "#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:16, fontWeight:700 }}
-              >{day}</button>
-            ))}
+          <div style={{ display:"flex", flexWrap:"wrap", gap:"10px 16px" }}>
+            <Stepper label="EVERY" display={every === 1 ? "1 day" : `${every} days`}
+              onDec={() => onChange({ everyNDays: Math.max(1, every - 1) })}
+              onInc={() => onChange({ everyNDays: every + 1 })} />
+            <Stepper label="REPEAT" display={`${rep}×`}
+              onDec={() => onChange({ repeatCount: Math.max(1, rep - 1) })}
+              onInc={() => onChange({ repeatCount: rep + 1 })} />
+            <Stepper label="PAUSE" display={pause === 1 ? "1 day" : `${pause} days`}
+              onDec={() => onChange({ pauseDays: Math.max(0, pause - 1) })}
+              onInc={() => onChange({ pauseDays: pause + 1 })} />
           </div>
-          <div style={{ ...mono, fontSize:12, color:"#8d8d8d", marginTop:6 }}>
-            {template.schedule === "always" ? "Offered every day, including recovery days." : `Offered on routine day ${template.routineDay}.`}
-          </div>
+          <div style={{ ...mono, fontSize:12, color:"#8d8d8d", marginTop:8 }}>{summary}</div>
           <TemplateExerciseEditor
             exerciseNames={template.exerciseNames}
             exerciseWeights={template.exerciseWeights}
@@ -409,72 +378,19 @@
       );
     }
 
-    // WHY: One global "max train streak → rest" cap guarantees recovery days across any block mix.
-    function RestCapEditor({ cap, onChange }) {
-      const on = cap.enabled;
-      const Stepper = ({ label, value, onDec, onInc }) => (
-        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, opacity: on ? 1 : 0.4 }}>
-          <span style={{ ...mono, fontSize:14, color:"#b28ea0", minWidth:140 }}>{label}</span>
-          <button disabled={!on} onClick={onDec} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor: on ? "pointer" : "default", ...mono, fontSize:24 }}>−</button>
-          <span style={{ ...mono, fontSize:28, fontWeight:700, color:"#ddd", minWidth:34, textAlign:"center" }}>{value}</span>
-          <button disabled={!on} onClick={onInc} style={{ width:42, height:42, background:CARD, border:`1px solid #444`, color:"#bbb", borderRadius:3, cursor: on ? "pointer" : "default", ...mono, fontSize:24 }}>+</button>
-        </div>
-      );
-      return (
-        <div style={{ marginTop:16, background:"#1b1216", border:`1px solid #402630`, borderRadius:8, padding:"12px 12px 10px" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-            <span style={{ ...lbl9, fontSize:14, color:"#efbacd" }}>REST CAP</span>
-            <button
-              onClick={() => onChange({ enabled: !on })}
-              style={{
-                minWidth:96, padding:"8px 10px", borderRadius:3, cursor:"pointer", ...cond, fontWeight:700, fontSize:14,
-                border:`1px solid ${on ? ACC : BDR}`, background: on ? ACC : "transparent", color: on ? BG : "#777",
-              }}
-            >{on ? "ON" : "OFF"}</button>
-          </div>
-          <div style={{ ...mono, fontSize:15, color:"#b28ea0", marginBottom:14 }}>
-            {on
-              ? `After ${cap.maxTrainDays} training day${cap.maxTrainDays > 1 ? "s" : ""} in a row, force ${cap.restDays} rest day${cap.restDays > 1 ? "s" : ""}.`
-              : "Off — rest days come only from block cadence."}
-          </div>
-          <Stepper label="MAX TRAIN DAYS" value={cap.maxTrainDays}
-            onDec={() => onChange({ maxTrainDays: Math.max(1, cap.maxTrainDays - 1) })}
-            onInc={() => onChange({ maxTrainDays: cap.maxTrainDays + 1 })} />
-          <Stepper label="REST DAYS" value={cap.restDays}
-            onDec={() => onChange({ restDays: Math.max(1, cap.restDays - 1) })}
-            onInc={() => onChange({ restDays: cap.restDays + 1 })} />
-        </div>
-      );
-    }
-
     // WHY: Top-level editor lists independent block-types, each with its own recurrence cadence.
     function BlockPlanEditor({ plan, onChange, recentlyUsed, customExercises, onAddCustom, exerciseImages, onImageUpdate }) {
       const [exercisePicker, setExercisePicker] = useState(null);
       const emitPlan = (next) => onChange(normalizeBlockPlan(next));
       const updateTemplate = (id, patch) => {
-        const updated = plan.templates.map((t) => t.id !== id ? t : normalizeTemplate({ ...t, ...patch }, plan.routine));
+        const updated = plan.templates.map((t) => t.id !== id ? t : normalizeTemplate({ ...t, ...patch }));
         emitPlan({ ...plan, templates: updated });
       };
       const addTemplate = () => {
-        const t = normalizeTemplate({ id: `t${Date.now()}`, name: "New Block", schedule: "routine", routineDay: routineDayLabels(plan.routine)[0], cadenceEvery: 2 }, plan.routine);
+        const t = normalizeTemplate({ id: `t${Date.now()}`, name: "New Block", everyNDays: 2, repeatCount: 3, pauseDays: 2 });
         emitPlan({ ...plan, templates: [...plan.templates, t] });
       };
       const removeTemplate = (id) => emitPlan({ ...plan, templates: plan.templates.filter((t) => t.id !== id) });
-      const updateRoutine = (patch) => {
-        const routine = normalizeRoutine({ ...plan.routine, ...patch }, plan.restCap);
-        const days = routineDayLabels(routine);
-        const templates = plan.templates.map((t) => (
-          t.schedule === "routine" && !days.includes(t.routineDay)
-            ? { ...t, routineDay: days[0] }
-            : t
-        ));
-        emitPlan({
-          ...plan,
-          routine,
-          restCap: { ...plan.restCap, maxTrainDays: routine.trainDays, restDays: routine.restDays },
-          templates,
-        });
-      };
       const removeTemplateExercise = (templateId, exerciseIdx) => {
         const template = plan.templates.find((t) => t.id === templateId);
         if (!template) return;
@@ -504,10 +420,8 @@
 
       return (
         <div>
-          <RoutineEditor routine={plan.routine} onChange={updateRoutine} />
           {plan.templates.map((t) => (
             <TemplateRow key={t.id} template={t}
-              routine={plan.routine}
               onChange={(p) => updateTemplate(t.id, p)}
               onRemove={() => removeTemplate(t.id)}
               canRemove={plan.templates.length > 1}
@@ -516,7 +430,7 @@
               onSetExerciseWeight={setTemplateExerciseWeight} />
           ))}
           <button onClick={addTemplate} style={{ width:"100%", padding:12, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:17, ...cond, marginBottom:4 }}>+ ADD BLOCK TYPE</button>
-          <div style={{ ...mono, fontSize:12, color:"#666", marginBottom:4 }}>Routine blocks rotate by letter. Always blocks are offered every day.</div>
+          <div style={{ ...mono, fontSize:12, color:"#666", marginBottom:4 }}>Each block runs on its own cadence: every N days, repeated, then a pause.</div>
           <ExerciseModal
             open={!!exercisePicker}
             onClose={() => setExercisePicker(null)}
@@ -532,13 +446,10 @@
     }
 
     // WHY: Create full default day payload in one place to keep App initialization focused on state wiring.
-    // isRecovery suppresses "routine"-schedule blocks (forced rest per the rest cap) independent of
-    // which routine letter is active — recovery and routine rotation are orthogonal concepts.
-    function buildDefaultDayPayload({ date, priorSessions, dayType, isRecovery, lastTargets, plan }) {
+    // Blocks are offered per each template's own cadence on the given calendar date.
+    function buildDefaultDayPayload({ date, priorSessions, lastTargets, plan }) {
       const normalized = normalizeBlockPlan(plan);
-      const past = (priorSessions || []).filter((s) => s.date < date);
-      const allActiveTemplates = resolveActiveTemplates(normalized.templates, past, { dayType, routine: normalized.routine });
-      const activeTemplates = isRecovery ? allActiveTemplates.filter((t) => t.schedule === "always") : allActiveTemplates;
+      const activeTemplates = resolveActiveTemplates(normalized.templates, date, normalized.anchorDate);
       const lastTraining = [...priorSessions].reverse().find((s) => sessionHasTraining(s));
       const lastTrainNames = (lastTraining?.exercises || []).map((e) => e.name);
 

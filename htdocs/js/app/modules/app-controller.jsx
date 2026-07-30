@@ -2,7 +2,6 @@
     function App() {
       const [ready, setReady]               = useState(false);
       const [lastTrainDate, setLastTrainDate] = useState(null);
-      const [trainType, setTrainType]       = useState("A");
       // Training section
       const [exercises, setExercises]       = useState([]);
       const [trainBlocks, setTrainBlocks]   = useState([]);
@@ -45,15 +44,13 @@
 
       // WHY: Extracted to avoid duplicating 9 setters in both initApp and selectedSession effect.
       const applySessionToState = (today, planForLabels = blockPlan, priorForTargets = sessions) => {
-        setTrainType(today.routineDayLetter);
         const targetHistory = (priorForTargets || []).filter((s) => s.date < today.date);
         const lastTraining = [...targetHistory].reverse().find((s) => sessionHasTraining(s));
         const blocks = syncOfferedBlocksFromPlan({
           blocks: sessionBlocks(today),
           plan: planForLabels,
           priorSessions: targetHistory,
-          dayType: today.routineDayLetter,
-          isRecovery: shouldForcedRecoveryDay({ priorSessions: targetHistory, plan: planForLabels }),
+          date: today.date,
           lastTargets: lastTargetsFromSessions(targetHistory, today.date),
           fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
           replaceGeneric: today.date >= todayStr(),
@@ -78,9 +75,12 @@
           setRestSecs(rs); setTmpRestSecs(rs);
           const cdMs = cfg.cooldownMs ?? 4 * 3600000;
           setCooldownMs(cdMs); setTmpCooldownMin(Math.round(cdMs / 60000));
-          // WHY: Deep copy via JSON round-trip so edits in Settings don't mutate live schedule.
-          const bp = normalizeBlockPlan(cfg.blockPlan);
+          // WHY: Anchor per-block cadence to the earliest recorded session (or today) so cycles are stable.
+          const rawPlan = cfg.blockPlan;
+          const earliest = all.length ? [...all].map(s => s.date).sort((a,b) => a.localeCompare(b))[0] : todayStr();
+          const bp = normalizeBlockPlan({ ...(rawPlan || {}), anchorDate: (rawPlan && rawPlan.anchorDate) || earliest });
           setBlockPlan(bp); setTmpBlockPlan(JSON.parse(JSON.stringify(bp)));
+          if (!rawPlan || !rawPlan.anchorDate) await save("cfg", { ...cfg, blockPlan: bp });
           setCustomEx(cfg.customExercises || []);
           const imgs = await load("exerciseImages") || {};
           setExerciseImages(imgs);
@@ -96,25 +96,15 @@
 
           let today = all.find(s => s.date === t);
           if (!today) {
-            const plan = normalizeBlockPlan(cfg.blockPlan);
-            // WHY: Routine day letter (which templates to offer) and "is this a forced recovery day"
-            // (whether to suppress non-"always" blocks) are independent — see resolveRoutineDay vs
-            // shouldForcedRecoveryDay. Conflating them into a single A/B value was the root cause of
-            // recovery status and routine rotation corrupting each other across the app.
-            const routineDay = resolveRoutineDay(plan.routine, prior);
-            const isRecovery = shouldForcedRecoveryDay({ priorSessions: prior, plan });
-            const nt = routineDay;
             const lt = lastTargetsFromSessions(prior, t);
             const defaults = buildDefaultDayPayload({
               date: t,
               priorSessions: prior,
-              dayType: nt,
-              isRecovery,
               lastTargets: lt,
-              plan,
+              plan: bp,
             });
             today = {
-              ...mkSession(t, nt, defaults.exercises, defaults.mornExercises, isRecovery),
+              ...mkSession(t, "A", defaults.exercises, defaults.mornExercises, false),
               trainBlocks: defaults.trainBlocks,
             };
             // Only persist a freshly-created default session once the user has
@@ -142,7 +132,7 @@
       const persistSelectedDay = async (patch) => {
         const t = headerDate;
         const all = await load("sessions") || [];
-        const existing = all.find(s => s.date === t) || mkSession(t, trainType, [], []);
+        const existing = all.find(s => s.date === t) || mkSession(t, "A", [], []);
         // Stamp every write so cross-device merge can pick the newest edit per date.
         const updated = { ...existing, ...patch, updatedAt: Date.now() };
         const next = [...all.filter(s => s.date !== t), updated].sort((a,b) => a.date.localeCompare(b.date));
@@ -153,12 +143,12 @@
       };
 
       const saveExercises = (exs, su, d) => persistSelectedDay({
-        type: trainType, exercises: exs ?? exercises,
+        exercises: exs ?? exercises,
         supps: su ?? trainSupps, done: d ?? trainDone,
       });
       // Source of truth for training is blocks; exercises[] is the derived flat union.
       const saveTrainBlocks = (blocks, su, d) => persistSelectedDay({
-        type: trainType, trainBlocks: blocks ?? trainBlocks, exercises: flattenBlocks(blocks ?? trainBlocks),
+        trainBlocks: blocks ?? trainBlocks, exercises: flattenBlocks(blocks ?? trainBlocks),
         supps: su ?? trainSupps, done: d ?? trainDone,
       });
       const saveMorn = (exs, md, mc) => persistSelectedDay({
@@ -166,34 +156,6 @@
         mornDone: md ?? mornDone,
         mornCollapsed: mc ?? mornCollapsed,
       });
-
-      // WHY: Must reconcile (add/relabel) against the new day type, never regenerate from scratch —
-      // buildDefaultDayPayload creates brand-new blocks and was wiping out already-entered reps/exercises.
-      // Cycles through every configured routine letter (A, B, C, ...), not just an A/B toggle — the
-      // routine letter is orthogonal to recovery status (see resolveRoutineDay vs shouldForcedRecoveryDay).
-      // Manually switching the day is an explicit "I want to train today" override, so it always offers
-      // full routine blocks — it never re-applies the forced-recovery suppression for this day.
-      const switchTrainDay = () => {
-        const plan = normalizeBlockPlan(blockPlan);
-        const days = routineDayLabels(plan.routine);
-        const newType = days[(days.indexOf(trainType) + 1) % days.length] || days[0];
-        const prior = sessions.filter((s) => s.date < headerDate);
-        const lt = lastTargetsFromSessions(prior, headerDate);
-        const lastTraining = [...prior].reverse().find((s) => sessionHasTraining(s));
-        const blocks = syncOfferedBlocksFromPlan({
-          blocks: trainBlocks,
-          plan,
-          priorSessions: prior,
-          dayType: newType,
-          lastTargets: lt,
-          fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
-          replaceGeneric: headerDate >= todayStr(),
-        });
-        setTrainType(newType);
-        setTrainBlocks(blocks);
-        setExercises(flattenBlocks(blocks));
-        persistSelectedDay({ type: newType, trainBlocks: blocks, exercises: flattenBlocks(blocks), mornExercises, mornDone, mornCollapsed });
-      };
 
       // Training handlers (block-based). Each commits new blocks + derived exercises.
       const commitBlocks = (n) => { setTrainBlocks(n); setExercises(flattenBlocks(n)); saveTrainBlocks(n); };
@@ -226,7 +188,7 @@
       const onAddBlock    = ()           => {
         const prior = sessions.filter((s) => s.date < headerDate);
         const plan = normalizeBlockPlan(blockPlan);
-        const activeTemplates = resolveActiveTemplates(plan.templates, prior, { dayType: trainType, routine: plan.routine });
+        const activeTemplates = resolveActiveTemplates(plan.templates, headerDate, plan.anchorDate);
 
         if (!activeTemplates.length) {
           commitBlocks(mutAddBlock(trainBlocks));
@@ -424,10 +386,10 @@
       }, [ready, isViewingToday, mornDone, mornExercises]);
 
       useEffect(() => {
-        if (!ready || !isViewingToday || trainDone || trainType !== "A") return;
+        if (!ready || !isViewingToday || trainDone) return;
         // Day completes once every training block has been checked off.
         if (trainBlocks.length > 0 && trainBlocks.every(b => b.startedAt !== null)) completeDay();
-      }, [ready, isViewingToday, trainDone, trainType, trainBlocks]);
+      }, [ready, isViewingToday, trainDone, trainBlocks]);
 
       const toggleSupp = k => {
         const ns = { ...trainSupps, [k]: !trainSupps[k] };
@@ -476,25 +438,35 @@
         setSessions(sess);
       };
 
-      // WHY: Purely cosmetic badge coloring per routine letter — not a training/recovery signal.
-      const typeColor = trainType === "A" ? ACC : trainType === "B" ? RED : "#a070ff";
+      // WHY: Single accent — no more per-day-letter coloring.
+      const typeColor = ACC;
       const headerPriorSessions = useMemo(
         () => sessions.filter((s) => s.date < headerDate),
         [sessions, headerDate]
       );
-      const headerRoutineDay = resolveRoutineDay(normalizeBlockPlan(blockPlan).routine, headerPriorSessions);
-      const headerHasDailyBlocks = trainBlocks.some((block) => {
-        const template = normalizeBlockPlan(blockPlan).templates.find((t) => t.id === block.templateId);
-        return template?.schedule === "always";
-      });
-      // WHY: Recovery must reflect what's actually offered today, not just what history alone would
-      // suggest — a manual day-switch overrides forced recovery by making a real routine block
-      // available, and the UI must agree with the blocks actually on screen, not contradict them.
-      const isRecoveryDay = shouldForcedRecoveryDay({ priorSessions: headerPriorSessions, plan: blockPlan })
-        && trainBlocks.every((block) => {
-          const template = normalizeBlockPlan(blockPlan).templates.find((t) => t.id === block.templateId);
-          return template?.schedule === "always";
+      // A day with no offered blocks is a pure rest day. If the user has blocks on screen
+      // (from cadence or manually added), it's a training day.
+      const isRecoveryDay = trainBlocks.length === 0;
+
+      // WHY: Merge a structured training setup (e.g. returned by an LLM) into the block plan.
+      // Blocks are matched by name — existing ones are updated in place, new ones appended.
+      const importTrainingSetup = async (text) => {
+        const imported = parseTrainingSetupImport(text);
+        if (!imported.length) throw new Error("No blocks found in the pasted setup");
+        const cur = normalizeBlockPlan(blockPlan);
+        const merged = [...cur.templates];
+        imported.forEach((t) => {
+          const idx = merged.findIndex((m) => m.name.trim().toLowerCase() === t.name.trim().toLowerCase());
+          if (idx >= 0) merged[idx] = { ...t, id: merged[idx].id };
+          else merged.push(t);
         });
+        const next = normalizeBlockPlan({ ...cur, templates: merged });
+        setBlockPlan(next);
+        setTmpBlockPlan(JSON.parse(JSON.stringify(next)));
+        const cfg = await load("cfg");
+        await save("cfg", { ...(cfg || {}), blockPlan: next });
+        return imported.length;
+      };
 
       const openHeaderDayEditor = () => {
         const existing = sessions.find(s => s.date === headerDate)
@@ -509,8 +481,7 @@
           blocks: sessionBlocks(migrateSession(existing)),
           plan: blockPlan,
           priorSessions: prior,
-          dayType: existing.routineDayLetter || existing.type || "A",
-          isRecovery: existing.isRecoveryDay || false,
+          date: headerDate,
           lastTargets: lastTargetsFromSessions(prior, headerDate),
           fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
           replaceGeneric: headerDate >= todayStr(),

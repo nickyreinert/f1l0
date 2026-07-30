@@ -215,7 +215,7 @@
     // ─── LLM training-evaluation export ──────────────────────────────────────────
     // Builds a compact CSV journal plus a ready-to-use prompt asking an LLM to
     // evaluate the training. Kept intentionally terse (no JSON overhead).
-    function buildLlmExport(sessions, body) {
+    function buildLlmExport(sessions, body, plan) {
       const b = body || {};
       const esc = (v) => {
         const s = String(v ?? "").trim();
@@ -243,6 +243,12 @@
         "Then give concrete, prioritised recommendations: what to keep, what to change (exercise selection, reps / sets, added weight, frequency, rest), and any red flags.",
         "Be specific and reference the numbers.",
         "",
+        "AFTER the written evaluation, ALSO output an updated training setup as a single JSON code block so it can be imported back into the app. Use exactly this schema:",
+        "```json",
+        '{ "trainingSetup": { "blocks": [ { "name": "Pull-Ups", "everyNDays": 1, "repeatCount": 5, "pauseDays": 2, "exercises": [ { "name": "Pull-ups", "weight": 0 } ] } ] } }',
+        "```",
+        "JSON rules: everyNDays = interval in days (1 = daily, 2 = every second day); repeatCount = how many times before a pause; pauseDays = rest days after the repeats (0 = ongoing, no pause); weight in kg (0 = bodyweight). Keep block names short and only include blocks you recommend.",
+        "",
       ].join("\n");
 
       const athlete = [
@@ -252,13 +258,27 @@
         "",
       ].join("\n");
 
+      const currentSetup = plan && Array.isArray(plan.templates) ? [
+        "CURRENT SETUP (for reference — adjust as needed and return in the JSON block above)",
+        "```json",
+        JSON.stringify({ trainingSetup: { blocks: plan.templates.map((t) => ({
+          name: t.name,
+          everyNDays: t.everyNDays,
+          repeatCount: t.repeatCount,
+          pauseDays: t.pauseDays,
+          exercises: (t.exerciseNames || []).map((n) => ({ name: n, weight: (t.exerciseWeights || {})[n] || 0 })),
+        })) } }),
+        "```",
+        "",
+      ].join("\n") : "";
+
       const log = [
         "TRAINING LOG (one row per exercise per day; reps within the day separated by |)",
         "date,day,recovery,section,exercise,weight_kg,sets,total_reps,reps",
         ...(rows.length ? rows : ["(no logged training yet)"]),
       ].join("\n");
 
-      return prompt + athlete + log + "\n";
+      return prompt + athlete + currentSetup + log + "\n";
     }
 
 

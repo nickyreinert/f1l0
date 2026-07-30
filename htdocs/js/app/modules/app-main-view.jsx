@@ -9,10 +9,8 @@
 	                const urgencyTag = isRecoveryDay && urgency >= 2
 	                  ? urgency === 2 ? "TRAIN!" : urgency === 3 ? "TRAIN NOW!" : urgency === 4 ? "YOU MUST TRAIN!" : "LAZY BASTARD!"
 	                  : null;
-	                const headline = isRecoveryDay ? (headerHasDailyBlocks ? "RECOVERY" : "REST") : `TRAIN ${headerRoutineDay}`;
-	                const subline = isRecoveryDay
-	                  ? (headerHasDailyBlocks ? "DAILY BLOCKS ONLY" : "NO SCHEDULED BLOCKS")
-	                  : `ROUTINE ${headerRoutineDay}`;
+	                const headline = isRecoveryDay ? "REST" : "TRAIN";
+	                const subline = isRecoveryDay ? "REST DAY" : "TRAINING DAY";
 	                return <>
 	                  <div style={{ lineHeight:0.88, position:"relative" }}>
 	                    <div style={{ fontSize:"clamp(60px, 13vw, 128px)", fontWeight:900, letterSpacing:-3, color:urgencyColor }}>{headline}</div>
@@ -24,7 +22,6 @@
                     <button onClick={openHeaderDayEditor} title="Edit day" style={{ ...lbl9, background:"none", border:"none", cursor:"pointer", color:"#aaa" }}>{fmtDate(headerDate).toUpperCase()}</button>
                     <button onClick={() => setHeaderDayOffset(0)} title="Go to today" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:13, letterSpacing:1.5, lineHeight:1, ...cond }}>TODAY</button>
                     <button onClick={() => setHeaderDayOffset(o => Math.min(0, o + 1))} title="Next day" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:20, lineHeight:1 }}>›</button>
-                    {isViewingToday && <button onClick={switchTrainDay} title="Switch training day" style={{ background:"transparent", border:`1px solid ${typeColor}`, color:typeColor, borderRadius:3, padding:"4px 12px", cursor:"pointer", fontSize:13, letterSpacing:2, fontWeight:700, ...cond }}>DAY {trainType}</button>}
                   </div>
                 </>;
               })()}
