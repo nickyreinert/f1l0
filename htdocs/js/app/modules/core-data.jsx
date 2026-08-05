@@ -245,9 +245,9 @@
         "",
         "AFTER the written evaluation, ALSO output an updated training setup as a single JSON code block so it can be imported back into the app. Use exactly this schema:",
         "```json",
-        '{ "trainingSetup": { "blocks": [ { "name": "Pull-Ups", "everyNDays": 1, "repeatCount": 5, "pauseDays": 2, "exercises": [ { "name": "Pull-ups", "weight": 0 } ] } ] } }',
+        '{ "trainingSetup": { "blocks": [ { "name": "Pull-Ups", "everyNDays": 1, "repeatCount": 5, "pauseDays": 2, "weekParity": "all", "exercises": [ { "name": "Pull-ups", "weight": 0 } ] } ] } }',
         "```",
-        "JSON rules: everyNDays = interval in days (1 = daily, 2 = every second day); repeatCount = how many times before a pause; pauseDays = rest days after the repeats (0 = ongoing, no pause); weight in kg (0 = bodyweight). Keep block names short and only include blocks you recommend.",
+        "JSON rules: everyNDays = interval in days (1 = daily, 2 = every second day); repeatCount = how many times before a pause; pauseDays = rest days after the repeats (0 = ongoing, no pause); weekParity is all, odd, or even; weight in kg (0 = bodyweight). Keep block names short and only include blocks you recommend.",
         "",
       ].join("\n");
 
@@ -266,6 +266,7 @@
           everyNDays: t.everyNDays,
           repeatCount: t.repeatCount,
           pauseDays: t.pauseDays,
+          weekParity: t.weekParity || "all",
           exercises: (t.exerciseNames || []).map((n) => ({ name: n, weight: (t.exerciseWeights || {})[n] || 0 })),
         })) } }),
         "```",
@@ -346,7 +347,7 @@
     // Read the training blocks out of a session, synthesising one block from the
     // flat exercises[] for sessions saved before blocks existed.
     function sessionBlocks(session) {
-      if (Array.isArray(session?.trainBlocks) && session.trainBlocks.length) return session.trainBlocks;
+      if (Array.isArray(session?.trainBlocks)) return session.trainBlocks;
       const exs = Array.isArray(session?.exercises) ? session.exercises : [];
       return [{ id: mkBlockId(), label: null, templateId: null, exercises: exs.length ? exs : [mkEx("Pull-ups")], startedAt: null, collapsed: false }];
     }

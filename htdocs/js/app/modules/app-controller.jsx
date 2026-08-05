@@ -54,6 +54,7 @@
           lastTargets: lastTargetsFromSessions(targetHistory, today.date),
           fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
           replaceGeneric: today.date >= todayStr(),
+          manualTemplateIds: today.manualTemplateIds,
         });
         setTrainBlocks(blocks);
         setExercises(flattenBlocks(blocks));
@@ -324,6 +325,7 @@
       // ─── History edit / selected day ───────────────────────────────────────
       const [histOffset, setHistOffset] = useState(0);
       const [editEntry, setEditEntry]   = useState(null);
+      const [dayChooserOpen, setDayChooserOpen] = useState(false);
       const [headerDayOffset, setHeaderDayOffset] = useState(0);
 
       const headerDate = useMemo(() => {
@@ -485,12 +487,36 @@
           lastTargets: lastTargetsFromSessions(prior, headerDate),
           fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
           replaceGeneric: headerDate >= todayStr(),
+          manualTemplateIds: existing.manualTemplateIds,
         });
         setEditEntry({
           ...existing,
           trainBlocks: normalizedBlocks,
           exercises: flattenBlocks(normalizedBlocks),
         });
+      };
+
+      const applyManualTrainingDay = async (templateIds) => {
+        const isAuto = templateIds === null;
+        const ids = isAuto ? null : (Array.isArray(templateIds) ? templateIds.map(String) : []);
+        const prior = sessions.filter((s) => s.date < headerDate);
+        const plan = normalizeBlockPlan(blockPlan);
+        const selectedTemplates = isAuto
+          ? resolveActiveTemplates(plan.templates, headerDate, plan.anchorDate)
+          : (resolveManualTemplates(plan.templates, ids) || []);
+        const lastTraining = [...prior].reverse().find((s) => sessionHasTraining(s));
+        const lastTargets = lastTargetsFromSessions(prior, headerDate);
+        const trainBlocks = selectedTemplates.length
+          ? buildTrainingBlocks(selectedTemplates, (lastTraining?.exercises || []).map((e) => e.name), lastTargets, prior)
+          : [];
+        const updated = await persistSelectedDay({
+          manualTemplateIds: ids,
+          trainBlocks,
+          exercises: flattenBlocks(trainBlocks),
+          done: false,
+        });
+        applySessionToState(updated, blockPlan, prior);
+        setDayChooserOpen(false);
       };
 
       const saveHistoryEntry = async (updated) => {

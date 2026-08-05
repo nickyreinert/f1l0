@@ -20,6 +20,7 @@
                   <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:6 }}>
                     <button onClick={() => setHeaderDayOffset(o => o - 1)} title="Previous day" style={{ background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, padding:"4px 10px", cursor:"pointer", fontSize:20, lineHeight:1 }}>‹</button>
                     <button onClick={openHeaderDayEditor} title="Edit day" style={{ ...lbl9, background:"none", border:"none", cursor:"pointer", color:"#aaa" }}>{fmtDate(headerDate).toUpperCase()}</button>
+                    <button onClick={() => setDayChooserOpen(true)} title="Choose training day" style={{ background:"#101820", border:`1px solid #395066`, color:"#9db7c8", borderRadius:3, padding:"4px 10px", cursor:"pointer", fontSize:13, letterSpacing:1.5, lineHeight:1, ...cond }}>TYPE</button>
                     <button onClick={() => setHeaderDayOffset(0)} title="Go to today" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:13, letterSpacing:1.5, lineHeight:1, ...cond }}>TODAY</button>
                     <button onClick={() => setHeaderDayOffset(o => Math.min(0, o + 1))} title="Next day" disabled={headerDayOffset === 0} style={{ background:"transparent", border:`1px solid ${headerDayOffset === 0 ? "#222" : "#333"}`, color: headerDayOffset === 0 ? "#333" : "#888", borderRadius:3, padding:"4px 10px", cursor: headerDayOffset === 0 ? "default" : "pointer", fontSize:20, lineHeight:1 }}>›</button>
                   </div>
@@ -208,6 +209,53 @@
               onClose={() => setEditBlockIdx(null)}
             />
           )}
+
+          {dayChooserOpen && (() => {
+            const plan = normalizeBlockPlan(blockPlan);
+            const manualIds = Array.isArray(selectedSession.manualTemplateIds) ? selectedSession.manualTemplateIds.map(String) : null;
+            const autoTemplates = resolveActiveTemplates(plan.templates, headerDate, plan.anchorDate);
+            const activeIds = new Set((manualIds || autoTemplates.map((t) => t.id)).map(String));
+            const weekNo = isoWeekNumber(headerDate);
+            const optionStyle = (active) => ({
+              width:"100%", textAlign:"left", padding:"12px 14px", marginBottom:8, background: active ? "#17220a" : "#111",
+              border:`1px solid ${active ? ACC : BDR}`, color: active ? ACC : "#bbb", borderRadius:4, cursor:"pointer", boxSizing:"border-box"
+            });
+            const weekLabel = (t) => t.weekParity === "odd" ? "ODD WEEKS" : t.weekParity === "even" ? "EVEN WEEKS" : "ALL WEEKS";
+            return (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.72)", zIndex:40, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+                <div style={{ width:"min(460px, 100%)", background:CARD, border:`1px solid ${BDR}`, borderRadius:6, padding:16, boxShadow:"0 18px 80px rgba(0,0,0,.55)" }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:14 }}>
+                    <div>
+                      <div style={{ ...lbl9, color:"#888" }}>TRAINING DAY</div>
+                      <div style={{ fontSize:26, fontWeight:900, color:"#ddd", ...cond }}>{fmtDate(headerDate).toUpperCase()}</div>
+                      <div style={{ ...mono, fontSize:12, color:"#777" }}>ISO WEEK {weekNo}</div>
+                    </div>
+                    <button onClick={() => setDayChooserOpen(false)} title="Close" style={{ width:38, height:38, background:"transparent", border:`1px solid #333`, color:"#888", borderRadius:3, cursor:"pointer", fontSize:22, lineHeight:1 }}>x</button>
+                  </div>
+                  <button onClick={() => applyManualTrainingDay(null)} style={optionStyle(manualIds === null)}>
+                    <div style={{ fontSize:19, fontWeight:900, ...cond }}>AUTO SCHEDULE</div>
+                    <div style={{ ...mono, fontSize:11, color: manualIds === null ? ACC : "#777" }}>{autoTemplates.length ? autoTemplates.map((t) => t.name).join(" + ") : "REST"}</div>
+                  </button>
+                  <button onClick={() => applyManualTrainingDay([])} style={optionStyle(Array.isArray(manualIds) && manualIds.length === 0)}>
+                    <div style={{ fontSize:19, fontWeight:900, ...cond }}>REST</div>
+                    <div style={{ ...mono, fontSize:11, color: Array.isArray(manualIds) && manualIds.length === 0 ? ACC : "#777" }}>manual override</div>
+                  </button>
+                  {plan.templates.map((t) => {
+                    const active = Array.isArray(manualIds) && manualIds.length === 1 && activeIds.has(String(t.id));
+                    return (
+                      <button key={t.id} onClick={() => applyManualTrainingDay([t.id])} style={optionStyle(active)}>
+                        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8 }}>
+                          <div style={{ fontSize:19, fontWeight:900, ...cond }}>{t.name}</div>
+                          <div style={{ ...mono, fontSize:10, color: active ? ACC : "#777", flexShrink:0 }}>{weekLabel(t)}</div>
+                        </div>
+                        <div style={{ ...mono, fontSize:11, color: active ? ACC : "#777" }}>every {t.everyNDays}d, repeat {t.repeatCount}x, pause {t.pauseDays}d</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── History entry edit modal ── */}
           {editEntry && (

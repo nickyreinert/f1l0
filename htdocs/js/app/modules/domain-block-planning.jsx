@@ -30,6 +30,7 @@
     function normalizeTemplate(template) {
       if (!template || typeof template !== "object") return null;
       const exerciseNames = normalizeExerciseNames(template.exerciseNames);
+      const weekParity = normalizeWeekParity(template.weekParity || template.week || template.weeks);
 
       let everyNDays = parseInt(template.everyNDays, 10);
       let repeatCount = parseInt(template.repeatCount, 10);
@@ -49,9 +50,17 @@
         everyNDays,
         repeatCount,
         pauseDays,
+        weekParity,
         exerciseNames,
         exerciseWeights: normalizeExerciseWeights(template.exerciseWeights, exerciseNames),
       };
+    }
+
+    function normalizeWeekParity(value) {
+      const v = String(value || "all").trim().toLowerCase();
+      if (["odd", "uneven", "a"].includes(v)) return "odd";
+      if (["even", "b"].includes(v)) return "even";
+      return "all";
     }
 
     // WHY: Weight is an optional per-exercise default; keep only positive numbers for names still present.
@@ -84,8 +93,23 @@
       const ms = new Date(String(dateStr) + "T12:00:00").getTime();
       return Number.isFinite(ms) ? Math.floor(ms / 86400000) : 0;
     }
+    function isoWeekNumber(dateStr) {
+      const d = new Date(String(dateStr) + "T12:00:00");
+      if (!Number.isFinite(d.getTime())) return 1;
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+      const week1 = new Date(d.getFullYear(), 0, 4);
+      return 1 + Math.round((((d - week1) / 86400000) - 3 + ((week1.getDay() + 6) % 7)) / 7);
+    }
+    function isTemplateActiveForWeek(template, dateStr) {
+      const parity = normalizeWeekParity(template?.weekParity);
+      if (parity === "all") return true;
+      const week = isoWeekNumber(dateStr);
+      return parity === "odd" ? week % 2 === 1 : week % 2 === 0;
+    }
     function isTemplateActiveOnDate(template, dateStr, anchorDate) {
       if (!template) return false;
+      if (!isTemplateActiveForWeek(template, dateStr)) return false;
       const cycle = templateCycleLen(template);
       const idx = dayNumber(dateStr) - dayNumber(anchorDate || dateStr);
       const pos = ((idx % cycle) + cycle) % cycle;
@@ -96,6 +120,17 @@
     // WHY: Templates offered on a given calendar date, per each block's own cadence.
     function resolveActiveTemplates(templates, dateStr, anchorDate) {
       return (templates || []).filter((t) => isTemplateActiveOnDate(t, dateStr, anchorDate));
+    }
+
+    function resolveManualTemplates(templates, templateIds) {
+      if (!Array.isArray(templateIds)) return null;
+      const ids = new Set(templateIds.map(String));
+      return (templates || []).filter((t) => ids.has(String(t.id)));
+    }
+
+    function resolveOfferedTemplates(templates, dateStr, anchorDate, templateIds) {
+      const manual = resolveManualTemplates(templates, templateIds);
+      return manual || resolveActiveTemplates(templates, dateStr, anchorDate);
     }
 
     // WHY: A day with no block offered by any template is a pure rest/recovery day.
@@ -140,6 +175,7 @@
           everyNDays: b.everyNDays != null ? b.everyNDays : (b.every != null ? b.every : 1),
           repeatCount: b.repeatCount != null ? b.repeatCount : (b.repeat != null ? b.repeat : (b.times != null ? b.times : 3)),
           pauseDays: b.pauseDays != null ? b.pauseDays : (b.pause != null ? b.pause : 1),
+          weekParity: b.weekParity || b.week || b.weeks,
           exerciseNames,
           exerciseWeights,
         });
@@ -247,10 +283,10 @@
     // WHY: Offers exactly the blocks whose per-block cadence is active on `date`. Blocks with real
     // data are never dropped (see isUntouchedBlock); untouched blocks of no-longer-active templates
     // are swapped out for whatever the cadence offers today.
-    function syncOfferedBlocksFromPlan({ blocks, plan, priorSessions, date, lastTargets, fallbackNames, replaceGeneric }) {
+    function syncOfferedBlocksFromPlan({ blocks, plan, priorSessions, date, lastTargets, fallbackNames, replaceGeneric, manualTemplateIds }) {
       const normalized = normalizeBlockPlan(plan);
       const synced = syncPlannedBlocksFromPlan(blocks, normalized, lastTargets);
-      const activeTemplates = resolveActiveTemplates(normalized.templates, date, normalized.anchorDate);
+      const activeTemplates = resolveOfferedTemplates(normalized.templates, date, normalized.anchorDate, manualTemplateIds);
       const activeTemplateIds = new Set(activeTemplates.map((t) => t.id));
 
       // Drop blocks whose template is not offered today, but only if untouched —
@@ -345,9 +381,10 @@
         </div>
       );
       const everyTxt = every === 1 ? "every day" : `every ${every} days`;
+      const weekTxt = template.weekParity === "odd" ? "odd weeks only" : template.weekParity === "even" ? "even weeks only" : "all weeks";
       const summary = pause === 0
-        ? `Offered ${everyTxt} — no pause.`
-        : `Offered ${everyTxt}, ${rep}× then ${pause} day${pause === 1 ? "" : "s"} pause.`;
+        ? `Offered ${everyTxt}, ${weekTxt}; no pause.`
+        : `Offered ${everyTxt}, ${weekTxt}; ${rep}× then ${pause} day${pause === 1 ? "" : "s"} pause.`;
       return (
         <div style={{ background:"#101821", border:`1px solid #2a3a4a`, borderRadius:8, padding:"10px 12px", marginBottom:8 }}>
           <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:10 }}>
@@ -365,6 +402,17 @@
             <Stepper label="PAUSE" display={pause === 1 ? "1 day" : `${pause} days`}
               onDec={() => onChange({ pauseDays: Math.max(0, pause - 1) })}
               onInc={() => onChange({ pauseDays: pause + 1 })} />
+            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <span style={{ ...mono, fontSize:12, color:"#7797aa", minWidth:58 }}>WEEK</span>
+              {[
+                ["all", "ALL"],
+                ["odd", "ODD"],
+                ["even", "EVEN"],
+              ].map(([value, label]) => (
+                <button key={value} onClick={() => onChange({ weekParity: value })}
+                  style={{ height:34, minWidth:46, background: template.weekParity === value ? ACC : CARD, border:`1px solid ${template.weekParity === value ? ACC : "#444"}`, color: template.weekParity === value ? BG : "#bbb", borderRadius:3, cursor:"pointer", ...mono, fontSize:12, fontWeight:700 }}>{label}</button>
+              ))}
+            </div>
           </div>
           <div style={{ ...mono, fontSize:12, color:"#8d8d8d", marginTop:8 }}>{summary}</div>
           <TemplateExerciseEditor
@@ -387,7 +435,7 @@
         emitPlan({ ...plan, templates: updated });
       };
       const addTemplate = () => {
-        const t = normalizeTemplate({ id: `t${Date.now()}`, name: "New Block", everyNDays: 2, repeatCount: 3, pauseDays: 2 });
+        const t = normalizeTemplate({ id: `t${Date.now()}`, name: "New Block", everyNDays: 2, repeatCount: 3, pauseDays: 2, weekParity: "all" });
         emitPlan({ ...plan, templates: [...plan.templates, t] });
       };
       const removeTemplate = (id) => emitPlan({ ...plan, templates: plan.templates.filter((t) => t.id !== id) });
@@ -449,7 +497,7 @@
     // Blocks are offered per each template's own cadence on the given calendar date.
     function buildDefaultDayPayload({ date, priorSessions, lastTargets, plan }) {
       const normalized = normalizeBlockPlan(plan);
-      const activeTemplates = resolveActiveTemplates(normalized.templates, date, normalized.anchorDate);
+      const activeTemplates = resolveOfferedTemplates(normalized.templates, date, normalized.anchorDate, null);
       const lastTraining = [...priorSessions].reverse().find((s) => sessionHasTraining(s));
       const lastTrainNames = (lastTraining?.exercises || []).map((e) => e.name);
 
