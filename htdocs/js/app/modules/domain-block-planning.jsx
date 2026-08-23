@@ -51,6 +51,9 @@
         repeatCount,
         pauseDays,
         weekParity,
+        // Optional label. Blocks sharing a non-empty rotationGroup share one slot on the
+        // calendar cadence — see pickRotationWinners. Empty = independent, unaffected by grouping.
+        rotationGroup: String(template.rotationGroup || "").trim(),
         exerciseNames,
         exerciseWeights: normalizeExerciseWeights(template.exerciseWeights, exerciseNames),
       };
@@ -117,9 +120,75 @@
       return pos < activeWindow && pos % template.everyNDays === 0;
     }
 
-    // WHY: Templates offered on a given calendar date, per each block's own cadence.
+    // WHY: Templates offered on a given calendar date, per each block's own cadence. Pure calendar
+    // math, deliberately with no session-history dependency — this is the "WHEN" half of scheduling.
     function resolveActiveTemplates(templates, dateStr, anchorDate) {
       return (templates || []).filter((t) => isTemplateActiveOnDate(t, dateStr, anchorDate));
+    }
+
+    // ─── Rotation groups ──────────────────────────────────────────────────────────
+    // WHY: The calendar cadence (everyNDays/repeatCount/pauseDays/weekParity) decides WHEN a slot is
+    // due; a rotationGroup decides WHICH block fills it when several blocks share that slot — e.g.
+    // "Train 1" and "Train 2" alternating sessions. The winner is the successor (in the group's
+    // configured order) of whichever member was actually trained most recently, read back from
+    // history rather than stored as a counter — a skipped day, a manual override, or a change to
+    // the group's cadence can never desync it, because there is nothing to desync: it is recomputed
+    // fresh from what really happened every time.
+    function isBlockTrained(block) {
+      if (!block) return false;
+      if (block.startedAt != null) return true;
+      return (block.exercises || []).some((ex) => ex?.done === true);
+    }
+
+    function lastTrainedTemplateIdInGroup(groupTemplates, priorSessions) {
+      const memberIds = new Set(groupTemplates.map((t) => t.id));
+      let latest = null; // { date, templateId }
+      (priorSessions || []).forEach((session) => {
+        if (!session?.date) return;
+        sessionBlocks(migrateSession(session)).forEach((block) => {
+          if (!block?.templateId || !memberIds.has(block.templateId) || !isBlockTrained(block)) return;
+          if (!latest || session.date > latest.date) latest = { date: session.date, templateId: block.templateId };
+        });
+      });
+      return latest ? latest.templateId : null;
+    }
+
+    // `activeTemplates` are the templates already deemed due today by resolveActiveTemplates.
+    // `allTemplates` supplies each group's stable member order (independent of what happens to be
+    // active today, so the rotation stays predictable even if members have different cadences).
+    function pickRotationWinners(activeTemplates, allTemplates, priorSessions) {
+      const byGroup = {};
+      activeTemplates.forEach((t) => {
+        if (!t.rotationGroup) return;
+        (byGroup[t.rotationGroup] ||= []).push(t);
+      });
+      const winnerIdByGroup = {};
+      Object.keys(byGroup).forEach((group) => {
+        const activeMembers = byGroup[group];
+        if (activeMembers.length <= 1) { winnerIdByGroup[group] = activeMembers[0]?.id; return; }
+        const order = (allTemplates || []).filter((t) => t.rotationGroup === group);
+        const lastId = lastTrainedTemplateIdInGroup(order, priorSessions);
+        const lastIdx = lastId ? order.findIndex((t) => t.id === lastId) : -1;
+        let winner = activeMembers[0];
+        if (lastIdx !== -1) {
+          // Walk forward through group order from the successor, so a member whose OWN cadence
+          // isn't due today is skipped in favor of the next one that is.
+          for (let step = 1; step <= order.length; step += 1) {
+            const candidate = order[(lastIdx + step) % order.length];
+            const found = activeMembers.find((t) => t.id === candidate.id);
+            if (found) { winner = found; break; }
+          }
+        }
+        winnerIdByGroup[group] = winner.id;
+      });
+      return activeTemplates.filter((t) => !t.rotationGroup || t.id === winnerIdByGroup[t.rotationGroup]);
+    }
+
+    // WHY: The "WHEN" (calendar cadence) and "WHICH" (rotation group) steps composed. This is what
+    // every caller should use once priorSessions is available; resolveActiveTemplates alone stays
+    // exposed for the few call sites with no history in scope.
+    function resolveActiveTemplatesForDate(templates, dateStr, anchorDate, priorSessions) {
+      return pickRotationWinners(resolveActiveTemplates(templates, dateStr, anchorDate), templates, priorSessions);
     }
 
     function resolveManualTemplates(templates, templateIds) {
@@ -128,9 +197,9 @@
       return (templates || []).filter((t) => ids.has(String(t.id)));
     }
 
-    function resolveOfferedTemplates(templates, dateStr, anchorDate, templateIds) {
+    function resolveOfferedTemplates(templates, dateStr, anchorDate, templateIds, priorSessions) {
       const manual = resolveManualTemplates(templates, templateIds);
-      return manual || resolveActiveTemplates(templates, dateStr, anchorDate);
+      return manual || resolveActiveTemplatesForDate(templates, dateStr, anchorDate, priorSessions);
     }
 
     // WHY: A day with no block offered by any template is a pure rest/recovery day.
@@ -176,6 +245,7 @@
           repeatCount: b.repeatCount != null ? b.repeatCount : (b.repeat != null ? b.repeat : (b.times != null ? b.times : 3)),
           pauseDays: b.pauseDays != null ? b.pauseDays : (b.pause != null ? b.pause : 1),
           weekParity: b.weekParity || b.week || b.weeks,
+          rotationGroup: b.rotationGroup || b.rotateWith || b.alternatesWith || b.group,
           exerciseNames,
           exerciseWeights,
         });
@@ -286,7 +356,7 @@
     function syncOfferedBlocksFromPlan({ blocks, plan, priorSessions, date, lastTargets, fallbackNames, replaceGeneric, manualTemplateIds }) {
       const normalized = normalizeBlockPlan(plan);
       const synced = syncPlannedBlocksFromPlan(blocks, normalized, lastTargets);
-      const activeTemplates = resolveOfferedTemplates(normalized.templates, date, normalized.anchorDate, manualTemplateIds);
+      const activeTemplates = resolveOfferedTemplates(normalized.templates, date, normalized.anchorDate, manualTemplateIds, priorSessions);
       const activeTemplateIds = new Set(activeTemplates.map((t) => t.id));
 
       // Drop blocks whose template is not offered today, but only if untouched —
@@ -370,8 +440,11 @@
     // WHY: Isolated sub-component so each block-type row stays readable. Each block has its own
     // cadence: offered every N days, repeated X times, then a pause of P days (repeat/pause only
     // matter when pause > 0 — with no pause a block simply recurs every N days indefinitely).
-    function TemplateRow({ template, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight }) {
+    function TemplateRow({ template, allTemplates, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight, onSetRotationPartner }) {
       const every = template.everyNDays, rep = template.repeatCount, pause = template.pauseDays;
+      const group = template.rotationGroup;
+      const groupmates = group ? (allTemplates || []).filter((t) => t.id !== template.id && t.rotationGroup === group) : [];
+      const otherTemplates = (allTemplates || []).filter((t) => t.id !== template.id);
       const Stepper = ({ label, display, onDec, onInc }) => (
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <span style={{ ...mono, fontSize:12, color:"#7797aa", minWidth:58 }}>{label}</span>
@@ -415,6 +488,24 @@
             </div>
           </div>
           <div style={{ ...mono, fontSize:12, color:"#8d8d8d", marginTop:8 }}>{summary}</div>
+          {otherTemplates.length > 0 && (
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:10, paddingTop:10, borderTop:`1px solid #20303e` }}>
+              <span style={{ ...mono, fontSize:12, color:"#7797aa", flexShrink:0 }}>ROTATES WITH</span>
+              <select
+                value={groupmates[0]?.id || ""}
+                onChange={(e) => onSetRotationPartner(template.id, e.target.value || null)}
+                style={{ flex:1, background:"#1a1a1a", border:`1px solid ${group ? ACC : BDR}`, color: group ? ACC : "#bbb", padding:"8px 10px", borderRadius:3, outline:"none", fontSize:14, cursor:"pointer", ...mono }}
+              >
+                <option value="">— independent —</option>
+                {otherTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          )}
+          {groupmates.length > 0 && (
+            <div style={{ ...mono, fontSize:12, color:"#8d8d8d", marginTop:6 }}>
+              Alternates with {groupmates.map((t) => t.name).join(", ")} — whichever was trained last decides which one is offered next.
+            </div>
+          )}
           <TemplateExerciseEditor
             exerciseNames={template.exerciseNames}
             exerciseWeights={template.exerciseWeights}
@@ -454,6 +545,24 @@
         if (Number.isFinite(w) && w > 0) weights[name] = w; else delete weights[name];
         updateTemplate(templateId, { exerciseWeights: weights });
       };
+      // WHY: Users think "make A alternate with B", not "assign both to group G" — so the control is
+      // a simple picker, and this resolves it into the shared rotationGroup label underneath.
+      // Joining an existing group reuses its label; joining two ungrouped blocks mints a fresh one;
+      // picking "— independent —" only clears THIS block's group, leaving any other members intact.
+      const setRotationPartner = (templateId, otherTemplateId) => {
+        const template = plan.templates.find((t) => t.id === templateId);
+        if (!template) return;
+        if (!otherTemplateId) { updateTemplate(templateId, { rotationGroup: "" }); return; }
+        const other = plan.templates.find((t) => t.id === otherTemplateId);
+        if (!other) return;
+        const group = other.rotationGroup || template.rotationGroup || `rot_${Date.now().toString(36)}`;
+        const updated = plan.templates.map((t) => {
+          if (t.id === templateId) return normalizeTemplate({ ...t, rotationGroup: group });
+          if (t.id === otherTemplateId && !t.rotationGroup) return normalizeTemplate({ ...t, rotationGroup: group });
+          return t;
+        });
+        emitPlan({ ...plan, templates: updated });
+      };
       const selectTemplateExercise = (exerciseName) => {
         if (!exercisePicker) return;
         const template = plan.templates.find((t) => t.id === exercisePicker.templateId);
@@ -470,15 +579,17 @@
         <div>
           {plan.templates.map((t) => (
             <TemplateRow key={t.id} template={t}
+              allTemplates={plan.templates}
               onChange={(p) => updateTemplate(t.id, p)}
               onRemove={() => removeTemplate(t.id)}
               canRemove={plan.templates.length > 1}
               onPickExercise={(templateId, exerciseIdx) => setExercisePicker({ templateId, exerciseIdx })}
               onRemoveExercise={removeTemplateExercise}
-              onSetExerciseWeight={setTemplateExerciseWeight} />
+              onSetExerciseWeight={setTemplateExerciseWeight}
+              onSetRotationPartner={setRotationPartner} />
           ))}
           <button onClick={addTemplate} style={{ width:"100%", padding:12, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:17, ...cond, marginBottom:4 }}>+ ADD BLOCK TYPE</button>
-          <div style={{ ...mono, fontSize:12, color:"#666", marginBottom:4 }}>Each block runs on its own cadence: every N days, repeated, then a pause.</div>
+          <div style={{ ...mono, fontSize:12, color:"#666", marginBottom:4 }}>Each block runs on its own cadence: every N days, repeated, then a pause. Set "ROTATES WITH" to make two blocks alternate sessions instead of both being due the same day.</div>
           <ExerciseModal
             open={!!exercisePicker}
             onClose={() => setExercisePicker(null)}
@@ -497,7 +608,7 @@
     // Blocks are offered per each template's own cadence on the given calendar date.
     function buildDefaultDayPayload({ date, priorSessions, lastTargets, plan }) {
       const normalized = normalizeBlockPlan(plan);
-      const activeTemplates = resolveOfferedTemplates(normalized.templates, date, normalized.anchorDate, null);
+      const activeTemplates = resolveOfferedTemplates(normalized.templates, date, normalized.anchorDate, null, priorSessions);
       const lastTraining = [...priorSessions].reverse().find((s) => sessionHasTraining(s));
       const lastTrainNames = (lastTraining?.exercises || []).map((e) => e.name);
 
