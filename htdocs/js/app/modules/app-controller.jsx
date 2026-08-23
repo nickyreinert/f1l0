@@ -165,6 +165,7 @@
       const onBlkAddEx    = (bi)         => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutAddEx(E)));
       const onBlkDelEx    = (bi,ei)      => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutDelEx(E,ei)));
       const onBlkAddRep   = (bi,ei)      => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutAddRep(E,ei)));
+      const onBlkAddRepValue = (bi,ei,v) => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutAddRepValue(E,ei,v)));
       const onBlkExName   = (bi,ei,nm)   => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutName(E,ei,nm)));
       const onBlkExDone   = (bi,ei)      => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutToggleDone(E,ei)));
       const onBlkSetWeight= (bi,ei,w)    => commitBlocks(mutBlockEx(trainBlocks,bi,E=>mutSetWeight(E,ei,w)));
@@ -182,7 +183,7 @@
         const prior = sessions.filter((s) => s.date < headerDate);
         const lastTargets = lastTargetsFromSessions(prior, headerDate);
         const lastWeights = lastWeightsFromSessions(prior, headerDate);
-        const resetExercises = buildTemplateExercises({ template, fallbackNames: [], fallbackSingle: "Pull-ups", lastTargets, lastWeights });
+        const resetExercises = buildTemplateExercises({ template, fallbackNames: [], fallbackSingle: "Pull-ups", lastTargets, lastWeights, priorSessions: prior });
         commitBlocks(trainBlocks.map((b, k) => k !== bi ? b : { ...b, exercises: resetExercises }));
       };
       const canAddBlock   = true;
@@ -236,6 +237,7 @@
           lastTargets: targets,
           lastMatchingBlock,
           lastWeights: weights,
+          priorSessions: prior,
         });
 
         const newBlock = mkBlock(newExercises, selectedTemplate.name, selectedTemplate.id);
@@ -250,6 +252,7 @@
       const onMornAddEx  = ()        => { const n=mutAddEx(mornExercises);           setMornExercises(n); saveMorn(n); };
       const onMornDelEx  = (ei)      => { const n=mutDelEx(mornExercises,ei);        setMornExercises(n); saveMorn(n); };
       const onMornAddRep = (ei)      => { const n=mutAddRep(mornExercises,ei);       setMornExercises(n); saveMorn(n); };
+      const onMornAddRepValue = (ei,v) => { const n=mutAddRepValue(mornExercises,ei,v); setMornExercises(n); saveMorn(n); };
       const onMornToggleDone = (ei)  => { const n=mutToggleDone(mornExercises,ei);   setMornExercises(n); saveMorn(n); };
       const onMornSetWeight = (ei,w) => { const n=mutSetWeight(mornExercises,ei,w);   setMornExercises(n); saveMorn(n); };
       const onToggleMornCollapse = () => {

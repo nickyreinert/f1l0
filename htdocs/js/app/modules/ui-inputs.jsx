@@ -79,7 +79,7 @@
     }
 
     // ─── ExRow ───────────────────────────────────────────────────────────────────
-    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onRepAdded, onToggleDone, onSetWeight }) {
+    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onAddRepValue, onRepAdded, onToggleDone, onSetWeight }) {
       const [dialIdx, setDialIdx] = useState(null);
       const [pendingNewRep, setPendingNewRep] = useState(false);
       const [confirmDelete, setConfirmDelete] = useState(false);
@@ -121,6 +121,15 @@
       };
       const suggestedReps = (Array.isArray(ex.suggestedReps) ? ex.suggestedReps : []).filter(v => typeof v === "number" && v > 0);
       const showSuggestions = !ex.reps.length && suggestedReps.length > 0;
+      // WHY: One tap commits the exact value shown — no dial pad, no confirm. Suggestions only
+      // render while reps.length is 0, so mutAddRep's "suggestedReps[reps.length]" guess would
+      // always resolve to index 0 regardless of which tile was tapped; onAddRepValue commits the
+      // tapped tile's own value directly instead.
+      const confirmSuggested = (v) => {
+        if (disabled || !onAddRepValue) return;
+        onAddRepValue(v);
+        if (onRepAdded) onRepAdded();
+      };
 
       return (
         <div style={{ marginBottom:18 }}>
@@ -142,13 +151,14 @@
               <RepTile key={i} value={v} disabled={disabled} onClick={() => openDial(i)} />
             ))}
             {showSuggestions && suggestedReps.map((v,i) => (
-              <button key={`suggested_${i}`} disabled title="Suggested from last session" style={{
+              <button key={`suggested_${i}`} disabled={disabled} onClick={() => confirmSuggested(v)}
+                title="Tap to log this set — suggested from last time" style={{
                 width:54, height:54, borderRadius:4, flexShrink:0,
                 border:`2px dashed #4a5f18`,
                 background:"#0b1200",
                 color:"#6f8d18",
                 ...mono, fontWeight:700, fontSize:20,
-                cursor:"default",
+                cursor: disabled ? "default" : "pointer",
                 opacity:0.75,
               }}>{v}</button>
             ))}

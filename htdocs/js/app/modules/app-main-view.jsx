@@ -89,6 +89,7 @@
                         onOpenModal={(ei) => { setModalTarget({ section:"morn", ei }); setModalOpen(true); }}
                         onDeleteExercise={onMornDelEx}
                         onAddRep={onMornAddRep}
+                        onAddRepValue={onMornAddRepValue}
                         onToggleDone={onMornToggleDone}
                         onSetWeight={onMornSetWeight}
                         onComplete={toggleMorningComplete}
@@ -130,6 +131,7 @@
                   onOpenModal={(ei) => { setModalTarget({ section:"block", bi, ei }); setModalOpen(true); }}
                   onDeleteExercise={(ei) => onBlkDelEx(bi,ei)}
                   onAddRep={(ei) => onBlkAddRep(bi,ei)}
+                  onAddRepValue={(ei,v) => onBlkAddRepValue(bi,ei,v)}
                   onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
                   onToggleExDone={(ei) => onBlkExDone(bi,ei)}
                   onSetWeight={(ei,w) => onBlkSetWeight(bi,ei,w)}
