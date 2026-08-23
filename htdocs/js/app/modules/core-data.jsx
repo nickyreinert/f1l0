@@ -407,6 +407,11 @@
       const next = suggested[reps.length] || (reps.length>0 ? reps[reps.length-1] : ex.target);
       return {...ex,reps:[...reps, next]};
     });
+    // Appends a set with an EXACT value, bypassing mutAddRep's "guess from suggestedReps[reps.length]"
+    // heuristic. Needed for tapping a suggested-rep tile directly: since suggestions only render
+    // while reps.length is still 0, that heuristic would always resolve to suggestedReps[0] no
+    // matter which tile (index i, value v) was actually tapped.
+    const mutAddRepValue = (E,ei,v) => E.map((ex,k)=>k!==ei?ex:{...ex,reps:[...(Array.isArray(ex.reps)?ex.reps:[]), v]});
     const mutName   = (E,ei,n)    => E.map((ex,k)=>k!==ei?ex:{...ex,name:n});
     const mutToggleDone = (E,ei)  => E.map((ex,k)=>k!==ei?ex:{...ex,done:!ex.done});
     const mutTarget = (E,ei,d)    => E.map((ex,k)=>k!==ei?ex:{...ex,target:Math.max(1,ex.target+d)});

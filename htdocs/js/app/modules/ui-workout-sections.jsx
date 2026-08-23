@@ -145,7 +145,7 @@
     }
 
     // ─── ExercisesSection ────────────────────────────────────────────────────────
-    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onComplete, onRepAdded, onToggleDone, onSetWeight, showComplete }) {
+    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onAddRepValue, onComplete, onRepAdded, onToggleDone, onSetWeight, showComplete }) {
       const iconBtn = (icon, label, onClick, opts = {}) => (
         <button onClick={onClick} title={label} style={{
           flex:1, height:56, background:"transparent",
@@ -167,6 +167,7 @@
               onOpenModal={() => onOpenModal(ei)}
               onDelete={() => onDeleteExercise(ei)}
               onAddRep={() => onAddRep(ei)}
+              onAddRepValue={(v) => onAddRepValue(ei, v)}
               onRepAdded={onRepAdded}
               onToggleDone={() => onToggleDone(ei)}
               onSetWeight={onSetWeight ? (w => onSetWeight(ei, w)) : undefined}
@@ -186,7 +187,7 @@
 
     // ─── BlockCard (grease the groove) ───────────────────────────────────────────
     function BlockCard({ block, index, onSetRep, onDelRep, onAddExercise, onOpenModal,
-                         onDeleteExercise, onAddRep, onRepAdded, onToggleExDone, onCheck, onUncheck,
+                         onDeleteExercise, onAddRep, onAddRepValue, onRepAdded, onToggleExDone, onCheck, onUncheck,
                          onToggleCollapse, onEditStart, canDeleteBlock, onDeleteBlock,
                          canResetToTemplate, onResetToTemplate, onSetWeight }) {
       const [confirmDel, setConfirmDel] = useState(false);
@@ -234,6 +235,7 @@
                   onOpenModal={() => onOpenModal(ei)}
                   onDelete={() => onDeleteExercise(ei)}
                   onAddRep={() => onAddRep(ei)}
+                  onAddRepValue={(v) => onAddRepValue(ei, v)}
                   onRepAdded={onRepAdded}
                   onToggleDone={() => onToggleExDone(ei)}
                   onSetWeight={onSetWeight ? (w => onSetWeight(ei, w)) : undefined}

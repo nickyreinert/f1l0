@@ -218,10 +218,47 @@
       });
     }
 
-    function buildTemplateExercises({ template, fallbackNames, fallbackSingle, lastTargets, lastMatchingBlock, lastWeights }) {
+    // WHY: The suggestion for an exercise must reflect the last time THIS SPECIFIC BLOCK TYPE
+    // logged it — never any other block that happens to use the same exercise name. The common
+    // case: "Push-ups" bodyweight in a daily block and "Push-ups" with added weight in a training
+    // block are the same exercise NAME but a different exercise in practice; a name-only lookup
+    // across all history would blueprint one block's numbers (or weight) onto the other's. Scans
+    // only blocks matching this template (isBlockForTemplate), newest day and newest block first,
+    // and keeps the first (i.e. most recent) instance per exercise name.
+    function lastTargetsForTemplate(priorSessions, template, beforeDate) {
+      const reps = {};
+      const weights = {};
+      const pickReps = (ex) => (Array.isArray(ex?.reps) ? ex.reps : []).filter((v) => typeof v === "number" && v > 0);
+      [...(priorSessions || [])]
+        .filter((s) => !beforeDate || s.date < beforeDate)
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .forEach((session) => {
+          const blocks = [...sessionBlocks(migrateSession(session))].reverse();
+          blocks.forEach((block) => {
+            if (!isBlockForTemplate(block, template)) return;
+            (block.exercises || []).forEach((ex) => {
+              if (!ex?.name) return;
+              const r = pickReps(ex);
+              if (r.length && !(ex.name in reps)) reps[ex.name] = r;
+              if (typeof ex.weight === "number" && ex.weight > 0 && !(ex.name in weights)) weights[ex.name] = ex.weight;
+            });
+          });
+        });
+      return { reps, weights };
+    }
+
+    function buildTemplateExercises({ template, fallbackNames, fallbackSingle, lastTargets, lastMatchingBlock, lastWeights, priorSessions }) {
       const hasConfiguredNames = template?.exerciseNames?.length > 0;
       if (hasConfiguredNames) {
-        return mkExFromTargets(template.exerciseNames, lastTargets || {}, lastWeights || {}, template.exerciseWeights || {});
+        // Strictly scoped to THIS template's own history — deliberately no fallback to the
+        // cross-template lastTargets/lastWeights. A weight fallback in particular must never
+        // cross templates: it is exactly how "Push-ups" bodyweight in one block picked up
+        // "Push-ups" @10kg from a different block. An exercise never logged under this specific
+        // template gets no suggestion at all (empty green tiles, target defaults to 10) rather
+        // than borrowing numbers that belong to a different block's meaning of the exercise.
+        // template.exerciseWeights (the configured default) still applies via mkExFromTargets.
+        const scoped = lastTargetsForTemplate(priorSessions, template);
+        return mkExFromTargets(template.exerciseNames, scoped.reps, scoped.weights, template.exerciseWeights || {});
       }
       if ((lastMatchingBlock?.exercises || []).length) {
         return cloneSuggestedExercises(lastMatchingBlock.exercises);
@@ -238,12 +275,19 @@
         && templateNames.every((name, idx) => name === blockNames[idx]);
     }
 
+    // WHY: An exact templateId match must always win outright — never merely be tried first among
+    // equals. The old single `.find()` predicate OR'd "id matches" with "names match" per template
+    // and stopped at the first template satisfying either, in ARRAY order. So when two templates
+    // share the same exerciseNames (the same exercise appearing under two block types — the exact
+    // case this app now explicitly supports), an earlier template could win via namesMatchTemplate
+    // even for a block whose templateId correctly pointed at a later one, silently relabeling it
+    // and corrupting which block's history got looked up. Name-based matching is now only a
+    // fallback for legacy blocks with no templateId, or one pointing at a template since deleted.
     function labelBlocksFromPlan(blocks, plan) {
       const templates = normalizeBlockPlan(plan).templates;
       return (blocks || []).map((block) => {
-        const match = templates.find((template) => (
-          (block?.templateId && block.templateId === template.id) || namesMatchTemplate(block, template)
-        ));
+        const byId = block?.templateId && templates.find((template) => template.id === block.templateId);
+        const match = byId || templates.find((template) => namesMatchTemplate(block, template));
         if (!match) return block;
         return { ...block, label: match.name, templateId: block.templateId || match.id };
       });
@@ -524,6 +568,7 @@
           lastTargets,
           lastMatchingBlock,
           lastWeights,
+          priorSessions,
         });
         return mkBlock(exercises, template.name, template.id);
       });
