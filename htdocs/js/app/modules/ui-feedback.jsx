@@ -1,4 +1,22 @@
     // ─── Rest Timer ──────────────────────────────────────────────────────────────
+    // WHY: A single short beep — used to tick off each of the final 10 seconds so the countdown
+    // can be followed without watching the screen. Higher final tick pitch signals "almost done".
+    function playTick(freq = 880) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        const t = ctx.currentTime;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.3, t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        osc.start(t); osc.stop(t + 0.14);
+      } catch {}
+    }
+
     function playDone() {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -22,6 +40,9 @@
       const endAt = useRef(Date.now() + seconds * 1000);
       const [remaining, setRemaining] = useState(seconds);
       const doneRef = useRef(false);
+      // Tracks the last second we beeped so the sub-second polling interval fires exactly one
+      // tick per whole second remaining.
+      const lastTickRef = useRef(seconds + 1);
 
       useEffect(() => {
         const id = setInterval(() => {
@@ -31,18 +52,25 @@
             setRemaining(0);
             if (!doneRef.current) { doneRef.current = true; playDone(); onDone(); }
           } else {
+            // Audible countdown for the final 10 seconds — one tick per second to count along.
+            if (left <= 10 && left !== lastTickRef.current) playTick(left <= 3 ? 1320 : 880);
+            lastTickRef.current = left;
             setRemaining(left);
           }
-        }, 500);
+        }, 250);
         return () => clearInterval(id);
       }, []);
 
       const pct = ((seconds - remaining) / seconds) * 100;
       const urgentColor = remaining <= 10 ? RED : ACC;
 
+      // WHY: The overlay deliberately does NOT dismiss on background tap. When running as an
+      // installed PWA the user taps the screen to fake activity and keep the display awake during
+      // the pause; a tap-to-close overlay would abort the rest timer on every such tap. Only the
+      // explicit SKIP button ends the pause.
       return (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.96)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", zIndex:5000 }} onClick={onSkip}>
-          <div style={{ textAlign:"center", padding:"0 32px" }} onClick={e => e.stopPropagation()}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.96)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", zIndex:5000 }}>
+          <div style={{ textAlign:"center", padding:"0 32px" }}>
             <div style={{ ...mono, fontSize:11, color:"#555", letterSpacing:4, marginBottom:24 }}>PAUSE</div>
             <div style={{ position:"relative", width:200, height:200, margin:"0 auto 32px" }}>
               <svg width="200" height="200" style={{ position:"absolute", inset:0 }}>
