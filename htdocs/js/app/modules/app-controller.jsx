@@ -189,7 +189,7 @@
       const onAddBlock    = ()           => {
         const prior = sessions.filter((s) => s.date < headerDate);
         const plan = normalizeBlockPlan(blockPlan);
-        const activeTemplates = resolveActiveTemplates(plan.templates, headerDate, plan.anchorDate);
+        const activeTemplates = resolveActiveTemplatesForDate(plan.templates, headerDate, plan.anchorDate, prior);
 
         if (!activeTemplates.length) {
           commitBlocks(mutAddBlock(trainBlocks));
@@ -502,7 +502,7 @@
         const prior = sessions.filter((s) => s.date < headerDate);
         const plan = normalizeBlockPlan(blockPlan);
         const selectedTemplates = isAuto
-          ? resolveActiveTemplates(plan.templates, headerDate, plan.anchorDate)
+          ? resolveActiveTemplatesForDate(plan.templates, headerDate, plan.anchorDate, prior)
           : (resolveManualTemplates(plan.templates, ids) || []);
         const lastTraining = [...prior].reverse().find((s) => sessionHasTraining(s));
         const lastTargets = lastTargetsFromSessions(prior, headerDate);

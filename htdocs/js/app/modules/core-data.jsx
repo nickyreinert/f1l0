@@ -258,9 +258,10 @@
         "",
         "AFTER the written evaluation, ALSO output an updated training setup as a single JSON code block so it can be imported back into the app. Use exactly this schema:",
         "```json",
-        '{ "trainingSetup": { "blocks": [ { "name": "Pull-Ups", "everyNDays": 1, "repeatCount": 5, "pauseDays": 2, "weekParity": "all", "exercises": [ { "name": "Pull-ups", "weight": 0 } ] } ] } }',
+        '{ "trainingSetup": { "blocks": [ { "name": "Pull-Ups", "everyNDays": 1, "repeatCount": 5, "pauseDays": 2, "weekParity": "all", "rotationGroup": "", "exercises": [ { "name": "Pull-ups", "weight": 0 } ] } ] } }',
         "```",
         "JSON rules: everyNDays = interval in days (1 = daily, 2 = every second day); repeatCount = how many times before a pause; pauseDays = rest days after the repeats (0 = ongoing, no pause); weekParity is all, odd, or even; weight in kg (0 = bodyweight). Keep block names short and only include blocks you recommend.",
+        'rotationGroup: give two or more blocks the SAME rotationGroup label (any short string, e.g. "main") to make them alternate sessions instead of both being due on the same day — e.g. an upper/lower or push/pull split. The everyNDays/repeatCount/pauseDays/weekParity of each block still decide when a session from the group is due; rotationGroup only decides which one of them fills it, based on whichever was actually trained last. Leave rotationGroup empty ("") for a block that should NOT alternate with anything.',
         "",
       ].join("\n");
 
@@ -280,6 +281,7 @@
           repeatCount: t.repeatCount,
           pauseDays: t.pauseDays,
           weekParity: t.weekParity || "all",
+          rotationGroup: t.rotationGroup || "",
           exercises: (t.exerciseNames || []).map((n) => ({ name: n, weight: (t.exerciseWeights || {})[n] || 0 })),
         })) } }),
         "```",

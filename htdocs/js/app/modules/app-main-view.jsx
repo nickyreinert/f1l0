@@ -213,7 +213,8 @@
           {dayChooserOpen && (() => {
             const plan = normalizeBlockPlan(blockPlan);
             const manualIds = Array.isArray(selectedSession.manualTemplateIds) ? selectedSession.manualTemplateIds.map(String) : null;
-            const autoTemplates = resolveActiveTemplates(plan.templates, headerDate, plan.anchorDate);
+            const priorForChooser = sessions.filter((s) => s.date < headerDate);
+            const autoTemplates = resolveActiveTemplatesForDate(plan.templates, headerDate, plan.anchorDate, priorForChooser);
             const activeIds = new Set((manualIds || autoTemplates.map((t) => t.id)).map(String));
             const weekNo = isoWeekNumber(headerDate);
             const optionStyle = (active) => ({
