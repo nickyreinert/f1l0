@@ -151,14 +151,27 @@
       };
     }
 
+    // WHY: Reps of the most recent SINGLE logged instance of each exercise — the last block (or
+    // morning section) it actually appeared in — never a day-wide sum. sessionExercises() merges
+    // every occurrence of a name within a day into one reps[] array, so on a grease-the-groove day
+    // that repeats the same exercise across several blocks, "3 sets in my last block" was suggested
+    // back as 6 or 8 sets. A suggestion must mirror ONE comparable block, so this scans block-by-
+    // block (last block of a day first, then the morning section) and stops at the first real hit.
     function lastTargetsFromSessions(sessions, beforeDate) {
       const out = {};
+      const pickReps = (ex) => (Array.isArray(ex?.reps) ? ex.reps : []).filter(v => typeof v === 'number' && v > 0);
       [...sessions]
         .filter(s => !beforeDate || s.date < beforeDate)
         .sort((a,b) => b.date.localeCompare(a.date))
-        .forEach(s => sessionExercises(s).forEach(ex => {
-          if (!(ex.name in out) && ex.reps.length) out[ex.name] = ex.reps;
-        }));
+        .forEach(s => {
+          const mig = migrateSession(s);
+          const groups = [...sessionBlocks(mig)].reverse().map(b => b?.exercises || []);
+          groups.push(mig.mornExercises || []);
+          groups.forEach(exs => (exs || []).forEach(ex => {
+            const reps = pickReps(ex);
+            if (ex?.name && reps.length && !(ex.name in out)) out[ex.name] = reps;
+          }));
+        });
       return out;
     }
 
