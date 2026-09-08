@@ -50,7 +50,7 @@
                 return <>
 	                  {navBtn("protocol", () => setView("protocol"), "Routine")}
                   {navBtn("stats", () => setView("stats"), "Stats")}
-                  {navBtn("settings", () => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setView("settings"); }, "Settings")}
+                  {navBtn("settings", () => { setTmpRestSecs(restSecs); setTmpCooldownMin(Math.round(cooldownMs/60000)); setTmpWeightUnit(weightUnit); setView("settings"); }, "Settings")}
                   {navBtn("data", () => setView("data"), "Data")}
                 </>;
               })()}
@@ -92,6 +92,7 @@
                         onAddRepValue={onMornAddRepValue}
                         onToggleDone={onMornToggleDone}
                         onSetWeight={onMornSetWeight}
+                        weightUnit={weightUnit}
                         onComplete={toggleMorningComplete}
                         onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
                         showComplete={!mornDone}
@@ -135,6 +136,7 @@
                   onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
                   onToggleExDone={(ei) => onBlkExDone(bi,ei)}
                   onSetWeight={(ei,w) => onBlkSetWeight(bi,ei,w)}
+                  weightUnit={weightUnit}
                   onCheck={() => onCheckBlock(bi)}
                   onUncheck={() => onUncheckBlock(bi)}
                   onToggleCollapse={() => onBlkCollapse(bi)}
@@ -216,7 +218,7 @@
             const plan = normalizeBlockPlan(blockPlan);
             const manualIds = Array.isArray(selectedSession.manualTemplateIds) ? selectedSession.manualTemplateIds.map(String) : null;
             const priorForChooser = sessions.filter((s) => s.date < headerDate);
-            const autoTemplates = resolveActiveTemplatesForDate(plan.templates, headerDate, plan.anchorDate, priorForChooser);
+            const autoTemplates = resolveAutoTemplatesForDate(plan.templates, headerDate, plan.anchorDate, priorForChooser);
             const activeIds = new Set((manualIds || autoTemplates.map((t) => t.id)).map(String));
             const weekNo = isoWeekNumber(headerDate);
             const optionStyle = (active) => ({

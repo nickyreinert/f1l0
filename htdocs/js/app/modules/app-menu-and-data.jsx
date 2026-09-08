@@ -258,7 +258,24 @@
                       onAddCustom={addCustomExercise}
                       exerciseImages={exerciseImages}
                       onImageUpdate={updateExerciseImage}
+                      weightUnit={tmpWeightUnit}
                     />
+                  </div>
+
+                  <div style={{ background:"#0d1210", border:`1px solid #213326`, borderRadius:8, padding:"14px 14px 12px", marginBottom:14 }}>
+                    <div style={{ ...lbl9, marginBottom:10, fontSize:14, color:"#a8e8b4" }}>WEIGHT UNIT</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                      {WEIGHT_UNITS.map((unit) => {
+                        const active = tmpWeightUnit === unit;
+                        return (
+                          <button key={unit} onClick={() => setTmpWeightUnit(unit)}
+                            style={{ height:54, background: active ? ACC : CARD, border:`1px solid ${active ? ACC : BDR}`, color: active ? BG : "#aaa", borderRadius:4, cursor:"pointer", fontSize:20, letterSpacing:2, fontWeight:900, ...cond }}>
+                            {weightUnitLabel(unit)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ ...mono, fontSize:13, color:"#777", marginTop:8 }}>Exercise weights are stored once and converted automatically.</div>
                   </div>
 
                   <div style={{ background:"#10100d", border:`1px solid #2c2a1a`, borderRadius:8, padding:"14px 14px 12px", marginBottom:14 }}>
@@ -365,8 +382,9 @@
                     const rs = Math.max(10, tmpRestSecs);
                     const cdMs = Math.max(15, tmpCooldownMin) * 60000;
                     const bp = normalizeBlockPlan(tmpBlockPlan);
-                    setRestSecs(rs); setSupplements(tmpSupplements); setCooldownMs(cdMs); setBlockPlan(bp);
-                    load("cfg").then(cfg => save("cfg", { ...(cfg||{}), restSecs: rs, cooldownMs: cdMs, supplements: tmpSupplements, blockPlan: bp }));
+                    const wu = normalizeWeightUnit(tmpWeightUnit);
+                    setRestSecs(rs); setSupplements(tmpSupplements); setCooldownMs(cdMs); setBlockPlan(bp); setWeightUnit(wu);
+                    load("cfg").then(cfg => save("cfg", { ...(cfg||{}), restSecs: rs, cooldownMs: cdMs, supplements: tmpSupplements, blockPlan: bp, weightUnit: wu }));
                     setView("protocol");
                   }} style={{ background:ACC, color:BG, border:"none", padding:18, fontSize:24, fontWeight:900, letterSpacing:3, width:"100%", borderRadius:4, cursor:"pointer", ...cond }}>SAVE</button>
                 </>}

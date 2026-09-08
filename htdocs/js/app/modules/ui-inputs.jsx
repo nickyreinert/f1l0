@@ -4,7 +4,7 @@
       const press = d => setVal(v => v.length >= 4 ? v : v + d);
       const back  = () => setVal(v => v.slice(0, -1));
       const confirm = () => {
-        const n = parseInt(val, 10);
+        const n = parseFloat(val);
         if (!isNaN(n) && n >= 1) onConfirm(n);
         else if (val === "") onConfirm(initialValue);
       };
@@ -79,11 +79,12 @@
     }
 
     // ─── ExRow ───────────────────────────────────────────────────────────────────
-    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onAddRepValue, onRepAdded, onToggleDone, onSetWeight }) {
+    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onAddRepValue, onRepAdded, onToggleDone, onSetWeight, weightUnit }) {
       const [dialIdx, setDialIdx] = useState(null);
       const [pendingNewRep, setPendingNewRep] = useState(false);
       const [confirmDelete, setConfirmDelete] = useState(false);
       const [weightOpen, setWeightOpen] = useState(false);
+      const unit = normalizeWeightUnit(weightUnit);
       const openDial = (i) => { if (!disabled) setDialIdx(i); };
       const closeDial = () => { setDialIdx(null); setPendingNewRep(false); };
       const confirmRep = (v) => { if (dialIdx !== null) { onSetRep(dialIdx, v); setDialIdx(null); setPendingNewRep(false); } };
@@ -140,8 +141,9 @@
             <button onClick={onOpenModal} style={{ flex:1, background:"#1a1a1a", border:`1px solid #333`, color:"#e0e0e0", padding:"9px 12px", fontSize:14, ...cond, borderRadius:3, outline:"none", textAlign:"left", cursor:"pointer", fontWeight:500 }}>{ex.name}</button>
             {onSetWeight && (() => {
               const hasWeight = typeof ex.weight === 'number' && ex.weight > 0;
+              const displayWeight = formatWeight(ex.weight, unit);
               return (
-                <button onClick={() => !disabled && setWeightOpen(true)} title={hasWeight ? `${ex.weight} kg additional weight` : "Add weight (optional)"} style={{ height:38, flexShrink:0, padding:"0 10px", background: hasWeight ? "#141a05" : "#151515", border:`1px solid ${hasWeight ? ACC : "#333"}`, color: hasWeight ? ACC : "#777", borderRadius:3, cursor: disabled ? "default" : "pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasWeight ? `${ex.weight}kg` : "+KG"}</button>
+                <button onClick={() => !disabled && setWeightOpen(true)} title={hasWeight ? `${displayWeight} additional weight` : "Add weight (optional)"} style={{ height:38, flexShrink:0, padding:"0 10px", background: hasWeight ? "#141a05" : "#151515", border:`1px solid ${hasWeight ? ACC : "#333"}`, color: hasWeight ? ACC : "#777", borderRadius:3, cursor: disabled ? "default" : "pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasWeight ? displayWeight : `+${weightUnitLabel(unit)}`}</button>
               );
             })()}
             {canDelete && <button onClick={() => setConfirmDelete(true)} title="Delete" style={{ width:38, height:38, background:CARD, border:`1px solid #444`, color:"#ff6b6b", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>}
@@ -174,11 +176,11 @@
           )}
           {weightOpen && (
             <DialPad
-              initialValue={typeof ex.weight === 'number' && ex.weight > 0 ? ex.weight : ""}
+              initialValue={kgToDisplayWeight(ex.weight, unit)}
               label={`${ex.name} — WEIGHT`}
-              unit="KG"
+              unit={weightUnitLabel(unit)}
               deleteLabel="BODYWEIGHT"
-              onConfirm={(v) => { if (onSetWeight) onSetWeight(v); setWeightOpen(false); }}
+              onConfirm={(v) => { if (onSetWeight) onSetWeight(displayWeightToKg(v, unit)); setWeightOpen(false); }}
               onDelete={() => { if (onSetWeight) onSetWeight(0); setWeightOpen(false); }}
               onClose={() => setWeightOpen(false)}
             />

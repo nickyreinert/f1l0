@@ -10,6 +10,8 @@
       // WHY: Cooldown drives "grease the groove" pacing — configurable so user isn't locked to 4h.
       const [cooldownMs, setCooldownMs]     = useState(4 * 3600000);
       const [tmpCooldownMin, setTmpCooldownMin] = useState(240);
+      const [weightUnit, setWeightUnit]     = useState("kg");
+      const [tmpWeightUnit, setTmpWeightUnit] = useState("kg");
       const [editBlockIdx, setEditBlockIdx] = useState(null);
       // WHY: blockPlan is the schedule source of truth; tmpBlockPlan is the editable copy in Settings.
       const [blockPlan, setBlockPlan]       = useState(() => normalizeBlockPlan(null));
@@ -46,16 +48,19 @@
       const applySessionToState = (today, planForLabels = blockPlan, priorForTargets = sessions) => {
         const targetHistory = (priorForTargets || []).filter((s) => s.date < today.date);
         const lastTraining = [...targetHistory].reverse().find((s) => sessionHasTraining(s));
-        const blocks = syncOfferedBlocksFromPlan({
-          blocks: sessionBlocks(today),
-          plan: planForLabels,
-          priorSessions: targetHistory,
-          date: today.date,
-          lastTargets: lastTargetsFromSessions(targetHistory, today.date),
-          fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
-          replaceGeneric: today.date >= todayStr(),
-          manualTemplateIds: today.manualTemplateIds,
-        });
+        const storedBlocks = sessionBlocks(today);
+        const blocks = today.date < todayStr()
+          ? labelBlocksFromPlan(storedBlocks, planForLabels)
+          : syncOfferedBlocksFromPlan({
+              blocks: storedBlocks,
+              plan: planForLabels,
+              priorSessions: targetHistory,
+              date: today.date,
+              lastTargets: lastTargetsFromSessions(targetHistory, today.date),
+              fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
+              replaceGeneric: true,
+              manualTemplateIds: today.manualTemplateIds,
+            });
         setTrainBlocks(blocks);
         setExercises(flattenBlocks(blocks));
         setTrainSupps(today.supps ?? mkSup());
@@ -76,6 +81,8 @@
           setRestSecs(rs); setTmpRestSecs(rs);
           const cdMs = cfg.cooldownMs ?? 4 * 3600000;
           setCooldownMs(cdMs); setTmpCooldownMin(Math.round(cdMs / 60000));
+          const wu = normalizeWeightUnit(cfg.weightUnit);
+          setWeightUnit(wu); setTmpWeightUnit(wu);
           // WHY: Anchor per-block cadence to the earliest recorded session (or today) so cycles are stable.
           const rawPlan = cfg.blockPlan;
           const earliest = all.length ? [...all].map(s => s.date).sort((a,b) => a.localeCompare(b))[0] : todayStr();
@@ -190,7 +197,7 @@
       const onAddBlock    = ()           => {
         const prior = sessions.filter((s) => s.date < headerDate);
         const plan = normalizeBlockPlan(blockPlan);
-        const activeTemplates = resolveActiveTemplatesForDate(plan.templates, headerDate, plan.anchorDate, prior);
+        const activeTemplates = resolveAutoTemplatesForDate(plan.templates, headerDate, plan.anchorDate, prior);
 
         if (!activeTemplates.length) {
           commitBlocks(mutAddBlock(trainBlocks));
@@ -482,16 +489,19 @@
         }
         const prior = sessions.filter((s) => s.date < headerDate);
         const lastTraining = [...prior].reverse().find((s) => sessionHasTraining(s));
-        const normalizedBlocks = syncOfferedBlocksFromPlan({
-          blocks: sessionBlocks(migrateSession(existing)),
-          plan: blockPlan,
-          priorSessions: prior,
-          date: headerDate,
-          lastTargets: lastTargetsFromSessions(prior, headerDate),
-          fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
-          replaceGeneric: headerDate >= todayStr(),
-          manualTemplateIds: existing.manualTemplateIds,
-        });
+        const storedBlocks = sessionBlocks(migrateSession(existing));
+        const normalizedBlocks = headerDate < todayStr()
+          ? labelBlocksFromPlan(storedBlocks, blockPlan)
+          : syncOfferedBlocksFromPlan({
+              blocks: storedBlocks,
+              plan: blockPlan,
+              priorSessions: prior,
+              date: headerDate,
+              lastTargets: lastTargetsFromSessions(prior, headerDate),
+              fallbackNames: (lastTraining?.exercises || []).map((e) => e.name),
+              replaceGeneric: true,
+              manualTemplateIds: existing.manualTemplateIds,
+            });
         setEditEntry({
           ...existing,
           trainBlocks: normalizedBlocks,
@@ -505,7 +515,7 @@
         const prior = sessions.filter((s) => s.date < headerDate);
         const plan = normalizeBlockPlan(blockPlan);
         const selectedTemplates = isAuto
-          ? resolveActiveTemplatesForDate(plan.templates, headerDate, plan.anchorDate, prior)
+          ? resolveAutoTemplatesForDate(plan.templates, headerDate, plan.anchorDate, prior)
           : (resolveManualTemplates(plan.templates, ids) || []);
         const lastTraining = [...prior].reverse().find((s) => sessionHasTraining(s));
         const lastTargets = lastTargetsFromSessions(prior, headerDate);

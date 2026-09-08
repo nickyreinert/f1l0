@@ -319,6 +319,33 @@
       return false;
     }
 
+    // Store weights as kg for compatibility; switch units only at the UI boundary.
+    const WEIGHT_UNITS = ["kg", "lb"];
+    const LB_PER_KG = 2.2046226218;
+    function normalizeWeightUnit(unit) {
+      return String(unit || "kg").toLowerCase() === "lb" ? "lb" : "kg";
+    }
+    function weightUnitLabel(unit) {
+      return normalizeWeightUnit(unit).toUpperCase();
+    }
+    function kgToDisplayWeight(kg, unit) {
+      const n = Number(kg);
+      if (!Number.isFinite(n) || n <= 0) return "";
+      const v = normalizeWeightUnit(unit) === "lb" ? n * LB_PER_KG : n;
+      const rounded = Math.round(v * 10) / 10;
+      return Math.abs(rounded - Math.round(rounded)) < 0.05 ? Math.round(rounded) : rounded;
+    }
+    function displayWeightToKg(value, unit) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n <= 0) return 0;
+      const kg = normalizeWeightUnit(unit) === "lb" ? n / LB_PER_KG : n;
+      return Math.round(kg * 10) / 10;
+    }
+    function formatWeight(kg, unit) {
+      const v = kgToDisplayWeight(kg, unit);
+      return v ? `${v}${weightUnitLabel(unit)}` : "";
+    }
+
     // ─── Exercise categories ─────────────────────────────────────────────────────
     const EXERCISE_CATEGORIES = {
       "Pull":      ["Pull-ups", "Table Rows", "Muscle-ups", "Hanging Leg Raises"],

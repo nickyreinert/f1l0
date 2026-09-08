@@ -145,7 +145,7 @@
     }
 
     // ─── ExercisesSection ────────────────────────────────────────────────────────
-    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onAddRepValue, onComplete, onRepAdded, onToggleDone, onSetWeight, showComplete }) {
+    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onAddRepValue, onComplete, onRepAdded, onToggleDone, onSetWeight, showComplete, weightUnit }) {
       const iconBtn = (icon, label, onClick, opts = {}) => (
         <button onClick={onClick} title={label} style={{
           flex:1, height:56, background:"transparent",
@@ -171,6 +171,7 @@
               onRepAdded={onRepAdded}
               onToggleDone={() => onToggleDone(ei)}
               onSetWeight={onSetWeight ? (w => onSetWeight(ei, w)) : undefined}
+              weightUnit={weightUnit}
               canDelete={exercises.length > 1}
             />
           ))}
@@ -189,7 +190,7 @@
     function BlockCard({ block, index, onSetRep, onDelRep, onAddExercise, onOpenModal,
                          onDeleteExercise, onAddRep, onAddRepValue, onRepAdded, onToggleExDone, onCheck, onUncheck,
                          onToggleCollapse, onEditStart, canDeleteBlock, onDeleteBlock,
-                         canResetToTemplate, onResetToTemplate, onSetWeight }) {
+                         canResetToTemplate, onResetToTemplate, onSetWeight, weightUnit }) {
       const [confirmDel, setConfirmDel] = useState(false);
       const [confirmReset, setConfirmReset] = useState(false);
       const checked = block.startedAt !== null;
@@ -239,6 +240,7 @@
                   onRepAdded={onRepAdded}
                   onToggleDone={() => onToggleExDone(ei)}
                   onSetWeight={onSetWeight ? (w => onSetWeight(ei, w)) : undefined}
+                  weightUnit={weightUnit}
                   canDelete={block.exercises.length > 1}
                 />
               ))}
@@ -274,4 +276,3 @@
         </div>
       );
     }
-

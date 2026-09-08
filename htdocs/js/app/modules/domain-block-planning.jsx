@@ -191,6 +191,54 @@
       return pickRotationWinners(resolveActiveTemplates(templates, dateStr, anchorDate), templates, priorSessions);
     }
 
+    function templateOccurrenceDates(template, priorSessions) {
+      const seen = new Set();
+      (priorSessions || []).forEach((session) => {
+        if (!session?.date) return;
+        const matched = sessionBlocks(migrateSession(session)).some((block) =>
+          isBlockForTemplate(block, template) && isBlockTrained(block)
+        );
+        if (matched) seen.add(session.date);
+      });
+      return [...seen].sort((a, b) => a.localeCompare(b));
+    }
+
+    function currentTemplateRunCount(template, occurrenceDates) {
+      if (!occurrenceDates.length) return 0;
+      let count = 1;
+      for (let i = occurrenceDates.length - 1; i > 0; i -= 1) {
+        const gap = dayNumber(occurrenceDates[i]) - dayNumber(occurrenceDates[i - 1]);
+        if (gap > template.everyNDays) break;
+        count += 1;
+      }
+      return count;
+    }
+
+    // WHY: Auto schedule should advance from the last prior trained block. A saved rest day
+    // before the selected date is skipped, then the block's own repeat/pause rule decides
+    // whether it is due again.
+    function resolveAutoTemplatesForDate(templates, dateStr, anchorDate, priorSessions) {
+      const normalizedTemplates = (templates || []).map(normalizeTemplate).filter(Boolean);
+      if (!normalizedTemplates.length) return [];
+
+      const due = normalizedTemplates.filter((template) => {
+        if (!isTemplateActiveForWeek(template, dateStr)) return false;
+        const occurrences = templateOccurrenceDates(template, priorSessions);
+        if (!occurrences.length) return isTemplateActiveOnDate(template, dateStr, anchorDate);
+        const lastDate = occurrences[occurrences.length - 1];
+        const daysSince = dayNumber(dateStr) - dayNumber(lastDate);
+        if (daysSince <= 0) return false;
+        const runCount = currentTemplateRunCount(template, occurrences);
+        const phase = ((Math.max(1, runCount) - 1) % template.repeatCount) + 1;
+        const requiredGap = phase === template.repeatCount
+          ? template.everyNDays + template.pauseDays
+          : template.everyNDays;
+        return daysSince >= requiredGap;
+      });
+
+      return pickRotationWinners(due, normalizedTemplates, priorSessions);
+    }
+
     function resolveManualTemplates(templates, templateIds) {
       if (!Array.isArray(templateIds)) return null;
       const ids = new Set(templateIds.map(String));
@@ -199,7 +247,7 @@
 
     function resolveOfferedTemplates(templates, dateStr, anchorDate, templateIds, priorSessions) {
       const manual = resolveManualTemplates(templates, templateIds);
-      return manual || resolveActiveTemplatesForDate(templates, dateStr, anchorDate, priorSessions);
+      return manual || resolveAutoTemplatesForDate(templates, dateStr, anchorDate, priorSessions);
     }
 
     // WHY: A day with no block offered by any template is a pure rest/recovery day.
@@ -271,6 +319,15 @@
       if (block.startedAt) return true;
       const exercises = Array.isArray(block.exercises) ? block.exercises : [];
       return exercises.length > 0 && exercises.every((ex) => ex?.done === true);
+    }
+
+    function hasRecordedBlockData(block) {
+      if (!block) return false;
+      if (block.startedAt) return true;
+      return (block.exercises || []).some((ex) =>
+        ex?.done === true ||
+        (Array.isArray(ex?.reps) && ex.reps.some((v) => typeof v === "number" && v > 0))
+      );
     }
 
     function cloneSuggestedExercises(exercises) {
@@ -374,7 +431,7 @@
     function syncPlannedBlocksFromPlan(blocks, plan, lastTargets) {
       const templates = normalizeBlockPlan(plan).templates;
       return labelBlocksFromPlan(blocks, plan).filter((block) => {
-        if (!block?.templateId || isCompletedBlock(block)) return true;
+        if (!block?.templateId || hasRecordedBlockData(block)) return true;
         return templates.some((template) => template.id === block.templateId);
       });
     }
@@ -442,10 +499,14 @@
 
     // ─── BlockPlanEditor UI components ──────────────────────────────────────────
 
-    function TemplateExerciseEditor({ exerciseNames, exerciseWeights, onPick, onRemove, onSetWeight }) {
+    function TemplateExerciseEditor({ templateId, exerciseNames, exerciseWeights, onPick, onRemove, onSetWeight, onReorder, weightUnit }) {
       const names = normalizeExerciseNames(exerciseNames);
       const weights = exerciseWeights && typeof exerciseWeights === "object" ? exerciseWeights : {};
       const [weightFor, setWeightFor] = useState(null);
+      const [dragIdx, setDragIdx] = useState(null);
+      const [dragOver, setDragOver] = useState(null);
+      const dragRef = useRef({ fromIdx: null });
+      const unit = normalizeWeightUnit(weightUnit);
       const activeWeight = weightFor != null ? Number(weights[weightFor]) : NaN;
 
       return (
@@ -454,13 +515,45 @@
           {names.map((name, idx) => {
             const w = Number(weights[name]);
             const hasW = Number.isFinite(w) && w > 0;
+            const displayWeight = formatWeight(w, unit);
             return (
-              <div key={idx} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
+              <div key={`${name}_${idx}`} data-template-exercise-id={templateId} data-template-exercise-row={idx} style={{
+                display:"flex", gap:8, alignItems:"center", marginBottom:8,
+                background: dragIdx === idx ? "#132200" : dragOver === idx ? "#111800" : "transparent",
+                borderRadius:4, opacity: dragIdx === idx ? 0.65 : 1,
+                transition:"background 0.12s, opacity 0.12s",
+              }}>
+                <div
+                  title="Drag to reorder"
+                  style={{ cursor:"grab", color:"#555", fontSize:20, lineHeight:1, padding:"0 2px", touchAction:"none", userSelect:"none", flexShrink:0 }}
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    dragRef.current.fromIdx = idx;
+                    setDragIdx(idx);
+                    setDragOver(idx);
+                  }}
+                  onPointerMove={(e) => {
+                    if (dragRef.current.fromIdx === null) return;
+                    const el = document.elementFromPoint(e.clientX, e.clientY);
+                    const row = el?.closest(`[data-template-exercise-id="${templateId}"][data-template-exercise-row]`);
+                    if (row) {
+                      const nextIdx = parseInt(row.getAttribute("data-template-exercise-row"), 10);
+                      if (!isNaN(nextIdx)) setDragOver(nextIdx);
+                    }
+                  }}
+                  onPointerUp={() => {
+                    const from = dragRef.current.fromIdx;
+                    if (from !== null && dragOver !== null && from !== dragOver && onReorder) onReorder(from, dragOver);
+                    dragRef.current.fromIdx = null;
+                    setDragIdx(null);
+                    setDragOver(null);
+                  }}
+                >⠿</div>
                 <button
                   onClick={() => onPick(idx)}
                   style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"9px 10px", borderRadius:3, cursor:"pointer", fontSize:16, textAlign:"left", boxSizing:"border-box", ...cond, fontWeight:700 }}
                 >{name}</button>
-                <button onClick={() => setWeightFor(name)} title={hasW ? `${w} kg default weight` : "Set default weight (optional)"} style={{ height:36, flexShrink:0, padding:"0 10px", background: hasW ? "#141a05" : "#151515", border:`1px solid ${hasW ? ACC : "#333"}`, color: hasW ? ACC : "#777", borderRadius:3, cursor:"pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasW ? `${w}kg` : "+KG"}</button>
+                <button onClick={() => setWeightFor(name)} title={hasW ? `${displayWeight} default weight` : "Set default weight (optional)"} style={{ height:36, flexShrink:0, padding:"0 10px", background: hasW ? "#141a05" : "#151515", border:`1px solid ${hasW ? ACC : "#333"}`, color: hasW ? ACC : "#777", borderRadius:3, cursor:"pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasW ? displayWeight : `+${weightUnitLabel(unit)}`}</button>
                 <button onClick={() => onRemove(idx)} title="Remove exercise" style={{ width:36, height:36, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1 }}>×</button>
               </div>
             );
@@ -468,11 +561,11 @@
           <button onClick={() => onPick(null)} style={{ width:"100%", padding:10, background:"#0b1118", border:`1px dashed #2a3a4a`, color:"#8eb0c8", borderRadius:4, cursor:"pointer", fontSize:15, ...cond }}>+ ADD EXERCISE</button>
           {weightFor != null && (
             <DialPad
-              initialValue={Number.isFinite(activeWeight) && activeWeight > 0 ? activeWeight : ""}
+              initialValue={kgToDisplayWeight(activeWeight, unit)}
               label={`${weightFor} — DEFAULT WEIGHT`}
-              unit="KG"
+              unit={weightUnitLabel(unit)}
               deleteLabel="BODYWEIGHT"
-              onConfirm={(v) => { onSetWeight(weightFor, v); setWeightFor(null); }}
+              onConfirm={(v) => { onSetWeight(weightFor, displayWeightToKg(v, unit)); setWeightFor(null); }}
               onDelete={() => { onSetWeight(weightFor, 0); setWeightFor(null); }}
               onClose={() => setWeightFor(null)}
             />
@@ -484,7 +577,7 @@
     // WHY: Isolated sub-component so each block-type row stays readable. Each block has its own
     // cadence: offered every N days, repeated X times, then a pause of P days (repeat/pause only
     // matter when pause > 0 — with no pause a block simply recurs every N days indefinitely).
-    function TemplateRow({ template, allTemplates, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight, onSetRotationPartner }) {
+    function TemplateRow({ template, allTemplates, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight, onReorderExercise, onSetRotationPartner, weightUnit }) {
       const every = template.everyNDays, rep = template.repeatCount, pause = template.pauseDays;
       const group = template.rotationGroup;
       const groupmates = group ? (allTemplates || []).filter((t) => t.id !== template.id && t.rotationGroup === group) : [];
@@ -551,18 +644,21 @@
             </div>
           )}
           <TemplateExerciseEditor
+            templateId={template.id}
             exerciseNames={template.exerciseNames}
             exerciseWeights={template.exerciseWeights}
             onPick={(exerciseIdx) => onPickExercise(template.id, exerciseIdx)}
             onRemove={(exerciseIdx) => onRemoveExercise(template.id, exerciseIdx)}
             onSetWeight={(name, kg) => onSetExerciseWeight(template.id, name, kg)}
+            onReorder={(fromIdx, toIdx) => onReorderExercise(template.id, fromIdx, toIdx)}
+            weightUnit={weightUnit}
           />
         </div>
       );
     }
 
     // WHY: Top-level editor lists independent block-types, each with its own recurrence cadence.
-    function BlockPlanEditor({ plan, onChange, recentlyUsed, customExercises, onAddCustom, exerciseImages, onImageUpdate }) {
+    function BlockPlanEditor({ plan, onChange, recentlyUsed, customExercises, onAddCustom, exerciseImages, onImageUpdate, weightUnit }) {
       const [exercisePicker, setExercisePicker] = useState(null);
       const emitPlan = (next) => onChange(normalizeBlockPlan(next));
       const updateTemplate = (id, patch) => {
@@ -580,6 +676,16 @@
         updateTemplate(templateId, {
           exerciseNames: normalizeExerciseNames(template.exerciseNames).filter((_, idx) => idx !== exerciseIdx),
         });
+      };
+      const reorderTemplateExercise = (templateId, fromIdx, toIdx) => {
+        const template = plan.templates.find((t) => t.id === templateId);
+        if (!template) return;
+        const names = normalizeExerciseNames(template.exerciseNames);
+        if (fromIdx < 0 || toIdx < 0 || fromIdx >= names.length || toIdx >= names.length) return;
+        const next = [...names];
+        const [item] = next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, item);
+        updateTemplate(templateId, { exerciseNames: next });
       };
       const setTemplateExerciseWeight = (templateId, name, kg) => {
         const template = plan.templates.find((t) => t.id === templateId);
@@ -630,7 +736,9 @@
               onPickExercise={(templateId, exerciseIdx) => setExercisePicker({ templateId, exerciseIdx })}
               onRemoveExercise={removeTemplateExercise}
               onSetExerciseWeight={setTemplateExerciseWeight}
-              onSetRotationPartner={setRotationPartner} />
+              onReorderExercise={reorderTemplateExercise}
+              onSetRotationPartner={setRotationPartner}
+              weightUnit={weightUnit} />
           ))}
           <button onClick={addTemplate} style={{ width:"100%", padding:12, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:17, ...cond, marginBottom:4 }}>+ ADD BLOCK TYPE</button>
           <div style={{ ...mono, fontSize:12, color:"#666", marginBottom:4 }}>Each block runs on its own cadence: every N days, repeated, then a pause. Set "ROTATES WITH" to make two blocks alternate sessions instead of both being due the same day.</div>
