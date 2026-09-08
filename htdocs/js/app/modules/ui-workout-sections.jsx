@@ -1,11 +1,12 @@
       const [customName, setCustomName] = useState("");
       const [pendingImg, setPendingImg] = useState(null);
+      const [copiedPromptFor, setCopiedPromptFor] = useState(null);
       const imgInputRef = useRef(null);
 
       useEffect(() => {
         if (open) {
           setFilter(customExercises.length > 0 ? "Custom" : recentlyUsed.length > 0 ? "Recent" : "Pull");
-          setSearch(""); setCustomName("");
+          setSearch(""); setCustomName(""); setCopiedPromptFor(null);
         }
       }, [open]);
 
@@ -34,6 +35,14 @@
 
       const handleImgBtn = (exName, e) => {
         e.stopPropagation(); setPendingImg(exName); imgInputRef.current?.click();
+      };
+      const handleMissingImgPrompt = async (exName, e) => {
+        e.stopPropagation();
+        const ok = await copyExerciseImagePrompt(exName);
+        if (ok) {
+          setCopiedPromptFor(exName);
+          setTimeout(() => setCopiedPromptFor(null), 1500);
+        }
       };
 
       const handleImageFile = async (e) => {
@@ -98,7 +107,9 @@
                             justifyContent:"center", overflow:"hidden", flexShrink:0 }}>
                             {imgSrc
                               ? <img src={imgSrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-                              : <span style={{ fontSize:42, opacity:0.12 }}>◉</span>}
+                              : <button onClick={(e) => handleMissingImgPrompt(ex, e)} title="Copy image prompt" style={{ width:"100%", height:"100%", background:"#101010", border:"none", color: copiedPromptFor === ex ? ACC : "#555", cursor:"pointer", ...mono, fontSize:13, fontWeight:800, letterSpacing:1 }}>
+                                  {copiedPromptFor === ex ? "COPIED" : "+IMG"}
+                                </button>}
                           </div>
                           {/* Exercise name */}
                           <div style={{ padding:"12px 8px", fontSize:22, fontWeight:700, color:"#e0e0e0",
@@ -148,7 +159,7 @@
     }
 
     // ─── ExercisesSection ────────────────────────────────────────────────────────
-    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onAddRepValue, onComplete, onRepAdded, onToggleDone, onSetWeight, showComplete, weightUnit, exerciseImages }) {
+    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onAddRepValue, onComplete, onRepAdded, onToggleDone, onSetWeight, onSetWeightUnit, showComplete, weightUnit, exerciseImages }) {
       const iconBtn = (icon, label, onClick, opts = {}) => (
         <button onClick={onClick} title={label} style={{
           flex:1, height:56, background:"transparent",
@@ -174,6 +185,7 @@
               onRepAdded={onRepAdded}
               onToggleDone={() => onToggleDone(ei)}
               onSetWeight={onSetWeight ? (w => onSetWeight(ei, w)) : undefined}
+              onSetWeightUnit={onSetWeightUnit ? (u => onSetWeightUnit(ei, u)) : undefined}
               weightUnit={weightUnit}
               exerciseImages={exerciseImages}
               canDelete={exercises.length > 1}
@@ -194,7 +206,7 @@
     function BlockCard({ block, index, onSetRep, onDelRep, onAddExercise, onOpenModal,
                          onDeleteExercise, onAddRep, onAddRepValue, onRepAdded, onToggleExDone, onCheck, onUncheck,
                          onToggleCollapse, onEditStart, canDeleteBlock, onDeleteBlock,
-                         canResetToTemplate, onResetToTemplate, onSetWeight, weightUnit, exerciseImages }) {
+                         canResetToTemplate, onResetToTemplate, onSetWeight, onSetWeightUnit, weightUnit, exerciseImages }) {
       const [confirmDel, setConfirmDel] = useState(false);
       const [confirmReset, setConfirmReset] = useState(false);
       const checked = block.startedAt !== null;
@@ -244,6 +256,7 @@
                   onRepAdded={onRepAdded}
                   onToggleDone={() => onToggleExDone(ei)}
                   onSetWeight={onSetWeight ? (w => onSetWeight(ei, w)) : undefined}
+                  onSetWeightUnit={onSetWeightUnit ? (u => onSetWeightUnit(ei, u)) : undefined}
                   weightUnit={weightUnit}
                   exerciseImages={exerciseImages}
                   canDelete={block.exercises.length > 1}

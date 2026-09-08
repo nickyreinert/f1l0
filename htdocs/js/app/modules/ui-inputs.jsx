@@ -79,12 +79,13 @@
     }
 
     // ─── ExRow ───────────────────────────────────────────────────────────────────
-    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onAddRepValue, onRepAdded, onToggleDone, onSetWeight, weightUnit, exerciseImages }) {
+    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onAddRepValue, onRepAdded, onToggleDone, onSetWeight, onSetWeightUnit, weightUnit, exerciseImages }) {
       const [dialIdx, setDialIdx] = useState(null);
       const [pendingNewRep, setPendingNewRep] = useState(false);
       const [confirmDelete, setConfirmDelete] = useState(false);
       const [weightOpen, setWeightOpen] = useState(false);
-      const unit = normalizeWeightUnit(weightUnit);
+      const [copiedImgPrompt, setCopiedImgPrompt] = useState(false);
+      const unit = normalizeWeightUnit(ex.weightUnit || weightUnit);
       const thumb = exerciseImageFor(ex.name, exerciseImages);
       const openDial = (i) => { if (!disabled) setDialIdx(i); };
       const closeDial = () => { setDialIdx(null); setPendingNewRep(false); };
@@ -132,6 +133,13 @@
         onAddRepValue(v);
         if (onRepAdded) onRepAdded();
       };
+      const copyMissingImagePrompt = async () => {
+        const ok = await copyExerciseImagePrompt(ex.name);
+        if (ok) {
+          setCopiedImgPrompt(true);
+          setTimeout(() => setCopiedImgPrompt(false), 1500);
+        }
+      };
 
       return (
         <div style={{ marginBottom:18 }}>
@@ -139,9 +147,13 @@
             <button onClick={() => !disabled && onToggleDone && onToggleDone()} title={ex.done ? "Done" : "Mark as done"} style={{ width:38, height:38, flexShrink:0, borderRadius:3, border:`2px solid ${ex.done ? ACC : "#666"}`, background: ex.done ? ACC : "transparent", cursor: disabled ? "default" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
               {ex.done && <span style={{ color:BG, fontSize:18, fontWeight:700, lineHeight:1 }}>✓</span>}
             </button>
-            {thumb && (
+            {thumb ? (
               <button onClick={onOpenModal} title={`${ex.name} image`} style={{ width:62, height:62, flexShrink:0, padding:0, overflow:"hidden", background:"#0a0a0a", border:`1px solid #333`, borderRadius:4, cursor:"pointer" }}>
                 <img src={thumb} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+              </button>
+            ) : (
+              <button onClick={copyMissingImagePrompt} title="Copy image prompt" style={{ width:62, height:62, flexShrink:0, padding:0, background:"#101010", border:`1px dashed #444`, color: copiedImgPrompt ? ACC : "#666", borderRadius:4, cursor:"pointer", ...mono, fontSize:11, fontWeight:800, letterSpacing:1 }}>
+                {copiedImgPrompt ? "COPIED" : "+IMG"}
               </button>
             )}
             <div style={{ flex:1, minWidth:0 }}>
@@ -151,7 +163,10 @@
                   const hasWeight = typeof ex.weight === 'number' && ex.weight > 0;
                   const displayWeight = formatWeight(ex.weight, unit);
                   return (
-                    <button onClick={() => !disabled && setWeightOpen(true)} title={hasWeight ? `${displayWeight} additional weight` : "Add weight (optional)"} style={{ height:38, flexShrink:0, padding:"0 10px", background: hasWeight ? "#141a05" : "#151515", border:`1px solid ${hasWeight ? ACC : "#333"}`, color: hasWeight ? ACC : "#777", borderRadius:3, cursor: disabled ? "default" : "pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasWeight ? displayWeight : `+${weightUnitLabel(unit)}`}</button>
+                    <>
+                      <button onClick={() => !disabled && setWeightOpen(true)} title={hasWeight ? `${displayWeight} additional weight` : "Add weight (optional)"} style={{ height:38, flexShrink:0, padding:"0 10px", background: hasWeight ? "#141a05" : "#151515", border:`1px solid ${hasWeight ? ACC : "#333"}`, color: hasWeight ? ACC : "#777", borderRadius:3, cursor: disabled ? "default" : "pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasWeight ? displayWeight : `+${weightUnitLabel(unit)}`}</button>
+                      <button onClick={() => !disabled && onSetWeightUnit && onSetWeightUnit(unit === "kg" ? "lb" : "kg")} title="Switch weight unit" style={{ width:42, height:38, flexShrink:0, background:"#111", border:`1px solid #333`, color:"#999", borderRadius:3, cursor: disabled ? "default" : "pointer", ...mono, fontSize:11, fontWeight:700 }}>{weightUnitLabel(unit)}</button>
+                    </>
                   );
                 })()}
                 {canDelete && <button onClick={() => setConfirmDelete(true)} title="Delete" style={{ width:38, height:38, background:CARD, border:`1px solid #444`, color:"#ff6b6b", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>×</button>}

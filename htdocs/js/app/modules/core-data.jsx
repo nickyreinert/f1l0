@@ -192,6 +192,21 @@
         });
       return out;
     }
+    function lastWeightUnitsFromSessions(sessions, beforeDate) {
+      const out = {};
+      const collect = (exs) => (exs || []).forEach(ex => {
+        if (ex?.name && !(ex.name in out) && ex.weightUnit) out[ex.name] = normalizeWeightUnit(ex.weightUnit);
+      });
+      [...sessions]
+        .filter(s => !beforeDate || s.date < beforeDate)
+        .sort((a,b) => b.date.localeCompare(a.date))
+        .forEach(s => {
+          (Array.isArray(s.trainBlocks) ? s.trainBlocks : []).forEach(b => collect(b.exercises));
+          collect(s.exercises);
+          collect(s.mornExercises);
+        });
+      return out;
+    }
     const lastSession = sessions => [...(sessions||[])].sort((a,b) => a.date.localeCompare(b.date)).pop() || null;
 
     function calcTopExercises(sessions) {
@@ -258,9 +273,9 @@
         "",
         "AFTER the written evaluation, ALSO output an updated training setup as a single JSON code block so it can be imported back into the app. Use exactly this schema:",
         "```json",
-        '{ "trainingSetup": { "blocks": [ { "name": "Pull-Ups", "everyNDays": 1, "repeatCount": 5, "pauseDays": 2, "weekParity": "all", "rotationGroup": "", "exercises": [ { "name": "Pull-ups", "weight": 0 } ] } ] } }',
+        '{ "trainingSetup": { "blocks": [ { "name": "Pull-Ups", "everyNDays": 1, "repeatCount": 5, "pauseDays": 2, "weekParity": "all", "rotationGroup": "", "exercises": [ { "name": "Pull-ups", "weight": 0, "unit": "kg" } ] } ] } }',
         "```",
-        "JSON rules: everyNDays = interval in days (1 = daily, 2 = every second day); repeatCount = how many times before a pause; pauseDays = rest days after the repeats (0 = ongoing, no pause); weekParity is all, odd, or even; weight in kg (0 = bodyweight). Keep block names short and only include blocks you recommend.",
+        "JSON rules: everyNDays = interval in days (1 = daily, 2 = every second day); repeatCount = how many times before a pause; pauseDays = rest days after the repeats (0 = ongoing, no pause); weekParity is all, odd, or even; weight uses the given unit (kg or lb; 0 = bodyweight). Keep block names short and only include blocks you recommend.",
         'rotationGroup: give two or more blocks the SAME rotationGroup label (any short string, e.g. "main") to make them alternate sessions instead of both being due on the same day — e.g. an upper/lower or push/pull split. The everyNDays/repeatCount/pauseDays/weekParity of each block still decide when a session from the group is due; rotationGroup only decides which one of them fills it, based on whichever was actually trained last. Leave rotationGroup empty ("") for a block that should NOT alternate with anything.',
         "",
       ].join("\n");
@@ -282,7 +297,11 @@
           pauseDays: t.pauseDays,
           weekParity: t.weekParity || "all",
           rotationGroup: t.rotationGroup || "",
-          exercises: (t.exerciseNames || []).map((n) => ({ name: n, weight: (t.exerciseWeights || {})[n] || 0 })),
+          exercises: (t.exerciseNames || []).map((n) => {
+            const unit = (t.exerciseWeightUnits || {})[n] || "kg";
+            const weight = (t.exerciseWeights || {})[n] || 0;
+            return { name: n, weight: kgToDisplayWeight(weight, unit) || 0, unit };
+          }),
         })) } }),
         "```",
         "",
@@ -348,8 +367,8 @@
 
     // ─── Exercise categories ─────────────────────────────────────────────────────
     const EXERCISE_CATEGORIES = {
-      "Pull":      ["Pull-ups", "Ring Rows", "Ring Bows", "Band Straight-Arm Pulldowns", "Band Face Pulls", "Band Curls", "Reverse Band Curls", "Table Rows", "Muscle-ups", "Hanging Leg Raises"],
-      "Push":     ["Push-ups", "Weighted Push-ups", "Pike Push-ups", "Ring Push-ups", "Band Lateral Raises", "Band Triceps Pushdowns", "Handstand Push-ups", "Dips", "Tricep Dips"],
+      "Pull":      ["Pull-ups", "Ring Rows", "Ring Bows", "Band Straight-Arm Pulldowns", "Band Straight-Arm Pullup", "Band Face Pulls", "Band Rear Delt Flys", "Band Curls", "Band Curls (Hammer Grip)", "Reverse Band Curls", "Reverse Band Curls (Hammer Grip)", "Table Rows", "Muscle-ups", "Hanging Leg Raises"],
+      "Push":     ["Push-ups", "Elevated Push-Ups", "Weighted Push-ups", "Pike Push-ups", "Ring Push-ups", "Band Lateral Raises", "Band Triceps Pushdowns", "Handstand Push-ups", "Dips", "Tricep Dips"],
       "Legs":     ["Squats", "Pistol Squats", "Single-Leg RDL", "Glute Bridges", "Lunges"],
       "Core":     ["Core", "Crunches", "Leg Raises", "Plank (sets)", "L-Sit"],
       "Full Body": ["Burpees", "Mountain Climbers"],
@@ -372,15 +391,25 @@
       "Ring Rows": "img/exercises/ring-rows.png",
       "Push-ups": "img/exercises/push-ups.png",
       "Liegestütze": "img/exercises/push-ups.png",
+      "Elevated Push-Ups": "img/exercises/elevated-push-ups.png",
+      "Elevated Push-ups": "img/exercises/elevated-push-ups.png",
       "Weighted Push-ups": "img/exercises/weighted-push-ups.png",
       "Pike Push-ups": "img/exercises/pike-push-ups.png",
       "Ring Push-ups": "img/exercises/ring-push-ups.png",
       "Band Lateral Raises": "img/exercises/band-lateral-raises.png",
       "Band Triceps Pushdowns": "img/exercises/band-triceps-pushdowns.png",
+      "Band Rear Delt Flys": "img/exercises/band-rear-delt-flys.png",
+      "Band Rear Delt Flies": "img/exercises/band-rear-delt-flys.png",
       "Band Straight-Arm Pulldowns": "img/exercises/band-straight-arm-pulldowns.png",
       "Band Straight Arm Pulldowns": "img/exercises/band-straight-arm-pulldowns.png",
+      "Band Straight-Arm Pullup": "img/exercises/band-straight-arm-pullup.png",
+      "Band Straight Arm Pullup": "img/exercises/band-straight-arm-pullup.png",
       "Band Curls": "img/exercises/band-curls.png",
+      "Band Curls (Hammer Grip)": "img/exercises/band-curls-hammer-grip.png",
+      "Band Curls Hammer Grip": "img/exercises/band-curls-hammer-grip.png",
       "Reverse Band Curls": "img/exercises/reverse-band-curls.png",
+      "Reverse Band Curls (Hammer Grip)": "img/exercises/reverse-band-curls-hammer-grip.png",
+      "Read-Band Curls (Hammer-Grip)": "img/exercises/reverse-band-curls-hammer-grip.png",
       "Band Face Pulls": "img/exercises/band-face-pulls.png",
       "Pistol Squat": "img/exercises/pistol-squat.png",
       "Pistol Squats": "img/exercises/pistol-squat.png",
@@ -413,6 +442,38 @@
       return defaultMatch ? DEFAULT_EXERCISE_IMAGES[defaultMatch] : null;
     }
 
+    function exerciseImagePrompt(name) {
+      const clean = String(name || "this exercise").trim() || "this exercise";
+      return [
+        `Create a small square instructional thumbnail for "${clean}".`,
+        "Style: minimal flat vector-like raster illustration, white figure lines on a very dark charcoal background, lime accent arrows or resistance bands.",
+        "Constraints: no text, no labels, no logos, no watermark; centered composition, readable at 96x96 px."
+      ].join(" ");
+    }
+
+    async function copyExerciseImagePrompt(name) {
+      const text = exerciseImagePrompt(name);
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.select();
+          const ok = document.execCommand("copy");
+          document.body.removeChild(ta);
+          return ok;
+        } catch {
+          return false;
+        }
+      }
+    }
+
     // ─── Data shapes ─────────────────────────────────────────────────────────────
     const mkEx      = (name = "Push-ups", t = 10) => ({ name, target: t, reps: [t], done: false });
     const mkSup     = () => ({ creatine: false, midProtein: false, eveCombo: false });
@@ -439,6 +500,7 @@
         const reps = (Array.isArray(ex.reps) ? ex.reps : []).filter(v => typeof v === 'number' && v > 0);
         const flat = { name: ex.name, target: ex.target || 10, reps, done: ex.done || false };
         if (typeof ex.weight === 'number' && ex.weight > 0) flat.weight = ex.weight;
+        if (ex.weightUnit) flat.weightUnit = normalizeWeightUnit(ex.weightUnit);
         result.push(flat);
       }));
       return result;
@@ -452,7 +514,7 @@
       return [{ id: mkBlockId(), label: null, templateId: null, exercises: exs.length ? exs : [mkEx("Pull-ups")], startedAt: null, collapsed: false }];
     }
 
-    function mkExFromTargets(exNames, lt, lastWeights = {}, templateWeights = {}) {
+    function mkExFromTargets(exNames, lt, lastWeights = {}, templateWeights = {}, lastWeightUnits = {}, templateWeightUnits = {}) {
       return (exNames || []).map(name => {
         const prev = lt[name];
         const reps = Array.isArray(prev) && prev.length ? prev : [];
@@ -464,6 +526,8 @@
                      : undefined;
         const ex = { name, target: reps[0] || 10, reps: [], suggestedReps: reps, done: false };
         if (typeof weight === 'number') ex.weight = weight;
+        const unit = lastWeightUnits[name] || templateWeightUnits[name];
+        if (unit) ex.weightUnit = normalizeWeightUnit(unit);
         return ex;
       });
     }
@@ -485,6 +549,7 @@
       if (typeof w === 'number' && w > 0) next.weight = w; else delete next.weight;
       return next;
     });
+    const mutSetWeightUnit = (E,ei,u) => E.map((ex,k)=>k!==ei?ex:{...ex,weightUnit:normalizeWeightUnit(u)});
     const mutAddEx  = (E)         => [...E, mkEx()];
     const mutDelEx  = (E,ei)      => E.filter((_,k)=>k!==ei);
     const mutAddRep = (E,ei)      => E.map((ex,k)=> {

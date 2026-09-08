@@ -56,6 +56,7 @@
         rotationGroup: String(template.rotationGroup || "").trim(),
         exerciseNames,
         exerciseWeights: normalizeExerciseWeights(template.exerciseWeights, exerciseNames),
+        exerciseWeightUnits: normalizeExerciseWeightUnits(template.exerciseWeightUnits, exerciseNames),
       };
     }
 
@@ -74,6 +75,16 @@
       names.forEach((name) => {
         const w = Number(src[name]);
         if (Number.isFinite(w) && w > 0) out[name] = w;
+      });
+      return out;
+    }
+
+    function normalizeExerciseWeightUnits(units, exerciseNames) {
+      const src = units && typeof units === "object" ? units : {};
+      const names = normalizeExerciseNames(exerciseNames);
+      const out = {};
+      names.forEach((name) => {
+        if (src[name]) out[name] = normalizeWeightUnit(src[name]);
       });
       return out;
     }
@@ -280,10 +291,15 @@
         const exercises = Array.isArray(b.exercises) ? b.exercises : [];
         const exerciseNames = exercises.map((ex) => (typeof ex === "string" ? ex : ex && ex.name)).filter(Boolean);
         const exerciseWeights = {};
+        const exerciseWeightUnits = {};
         exercises.forEach((ex) => {
           if (ex && typeof ex === "object" && ex.name) {
+            const name = String(ex.name).trim();
+            const unitRaw = ex.weightUnit || ex.unit || ex.weight_unit;
+            const unit = unitRaw ? normalizeWeightUnit(unitRaw) : "kg";
             const w = Number(ex.weight);
-            if (Number.isFinite(w) && w > 0) exerciseWeights[String(ex.name).trim()] = w;
+            if (unitRaw) exerciseWeightUnits[name] = unit;
+            if (Number.isFinite(w) && w > 0) exerciseWeights[name] = displayWeightToKg(w, unit);
           }
         });
         return normalizeTemplate({
@@ -296,6 +312,7 @@
           rotationGroup: b.rotationGroup || b.rotateWith || b.alternatesWith || b.group,
           exerciseNames,
           exerciseWeights,
+          exerciseWeightUnits,
         });
       }).filter(Boolean);
     }
@@ -341,6 +358,7 @@
           done: false,
         };
         if (typeof ex?.weight === "number" && ex.weight > 0) cloned.weight = ex.weight;
+        if (ex?.weightUnit) cloned.weightUnit = normalizeWeightUnit(ex.weightUnit);
         return cloned;
       });
     }
@@ -355,6 +373,7 @@
     function lastTargetsForTemplate(priorSessions, template, beforeDate) {
       const reps = {};
       const weights = {};
+      const weightUnits = {};
       const pickReps = (ex) => (Array.isArray(ex?.reps) ? ex.reps : []).filter((v) => typeof v === "number" && v > 0);
       [...(priorSessions || [])]
         .filter((s) => !beforeDate || s.date < beforeDate)
@@ -368,13 +387,14 @@
               const r = pickReps(ex);
               if (r.length && !(ex.name in reps)) reps[ex.name] = r;
               if (typeof ex.weight === "number" && ex.weight > 0 && !(ex.name in weights)) weights[ex.name] = ex.weight;
+              if (ex.weightUnit && !(ex.name in weightUnits)) weightUnits[ex.name] = normalizeWeightUnit(ex.weightUnit);
             });
           });
         });
-      return { reps, weights };
+      return { reps, weights, weightUnits };
     }
 
-    function buildTemplateExercises({ template, fallbackNames, fallbackSingle, lastTargets, lastMatchingBlock, lastWeights, priorSessions }) {
+    function buildTemplateExercises({ template, fallbackNames, fallbackSingle, lastTargets, lastMatchingBlock, lastWeights, lastWeightUnits, priorSessions }) {
       const hasConfiguredNames = template?.exerciseNames?.length > 0;
       if (hasConfiguredNames) {
         // Strictly scoped to THIS template's own history — deliberately no fallback to the
@@ -385,13 +405,13 @@
         // than borrowing numbers that belong to a different block's meaning of the exercise.
         // template.exerciseWeights (the configured default) still applies via mkExFromTargets.
         const scoped = lastTargetsForTemplate(priorSessions, template);
-        return mkExFromTargets(template.exerciseNames, scoped.reps, scoped.weights, template.exerciseWeights || {});
+        return mkExFromTargets(template.exerciseNames, scoped.reps, scoped.weights, template.exerciseWeights || {}, scoped.weightUnits, template.exerciseWeightUnits || {});
       }
       if ((lastMatchingBlock?.exercises || []).length) {
         return cloneSuggestedExercises(lastMatchingBlock.exercises);
       }
       const names = resolveTemplateExerciseNames({ template, fallbackNames, fallbackSingle });
-      return mkExFromTargets(names, lastTargets || {}, lastWeights || {});
+      return mkExFromTargets(names, lastTargets || {}, lastWeights || {}, {}, lastWeightUnits || {}, {});
     }
 
     function namesMatchTemplate(block, template) {
@@ -499,15 +519,26 @@
 
     // ─── BlockPlanEditor UI components ──────────────────────────────────────────
 
-    function TemplateExerciseEditor({ templateId, exerciseNames, exerciseWeights, onPick, onRemove, onSetWeight, onReorder, weightUnit, exerciseImages }) {
+    function TemplateExerciseEditor({ templateId, exerciseNames, exerciseWeights, exerciseWeightUnits, onPick, onRemove, onSetWeight, onSetWeightUnit, onReorder, weightUnit, exerciseImages }) {
       const names = normalizeExerciseNames(exerciseNames);
       const weights = exerciseWeights && typeof exerciseWeights === "object" ? exerciseWeights : {};
+      const units = exerciseWeightUnits && typeof exerciseWeightUnits === "object" ? exerciseWeightUnits : {};
       const [weightFor, setWeightFor] = useState(null);
+      const [copiedPromptFor, setCopiedPromptFor] = useState(null);
       const [dragIdx, setDragIdx] = useState(null);
       const [dragOver, setDragOver] = useState(null);
       const dragRef = useRef({ fromIdx: null });
-      const unit = normalizeWeightUnit(weightUnit);
+      const fallbackUnit = normalizeWeightUnit(weightUnit);
       const activeWeight = weightFor != null ? Number(weights[weightFor]) : NaN;
+      const activeUnit = normalizeWeightUnit((weightFor && units[weightFor]) || fallbackUnit);
+
+      const copyMissingImagePrompt = async (name) => {
+        const ok = await copyExerciseImagePrompt(name);
+        if (ok) {
+          setCopiedPromptFor(name);
+          setTimeout(() => setCopiedPromptFor(null), 1500);
+        }
+      };
 
       return (
         <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid #20303e` }}>
@@ -515,7 +546,8 @@
           {names.map((name, idx) => {
             const w = Number(weights[name]);
             const hasW = Number.isFinite(w) && w > 0;
-            const displayWeight = formatWeight(w, unit);
+            const rowUnit = normalizeWeightUnit(units[name] || fallbackUnit);
+            const displayWeight = formatWeight(w, rowUnit);
             const thumb = exerciseImageFor(name, exerciseImages);
             return (
               <div key={`${name}_${idx}`} data-template-exercise-id={templateId} data-template-exercise-row={idx} style={{
@@ -550,16 +582,21 @@
                     setDragOver(null);
                   }}
                 >⠿</div>
-                {thumb && (
+                {thumb ? (
                   <button onClick={() => onPick(idx)} title={`${name} image`} style={{ width:36, height:36, flexShrink:0, padding:0, overflow:"hidden", background:"#0a0a0a", border:`1px solid #333`, borderRadius:3, cursor:"pointer" }}>
                     <img src={thumb} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                  </button>
+                ) : (
+                  <button onClick={() => copyMissingImagePrompt(name)} title="Copy image prompt" style={{ width:36, height:36, flexShrink:0, padding:0, background:"#101010", border:`1px dashed #3a3a3a`, color: copiedPromptFor === name ? ACC : "#666", borderRadius:3, cursor:"pointer", ...mono, fontSize:10, fontWeight:700 }}>
+                    {copiedPromptFor === name ? "OK" : "IMG"}
                   </button>
                 )}
                 <button
                   onClick={() => onPick(idx)}
                   style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"9px 10px", borderRadius:3, cursor:"pointer", fontSize:16, textAlign:"left", boxSizing:"border-box", ...cond, fontWeight:700 }}
                 >{name}</button>
-                <button onClick={() => setWeightFor(name)} title={hasW ? `${displayWeight} default weight` : "Set default weight (optional)"} style={{ height:36, flexShrink:0, padding:"0 10px", background: hasW ? "#141a05" : "#151515", border:`1px solid ${hasW ? ACC : "#333"}`, color: hasW ? ACC : "#777", borderRadius:3, cursor:"pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasW ? displayWeight : `+${weightUnitLabel(unit)}`}</button>
+                <button onClick={() => setWeightFor(name)} title={hasW ? `${displayWeight} default weight` : "Set default weight (optional)"} style={{ height:36, flexShrink:0, padding:"0 10px", background: hasW ? "#141a05" : "#151515", border:`1px solid ${hasW ? ACC : "#333"}`, color: hasW ? ACC : "#777", borderRadius:3, cursor:"pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasW ? displayWeight : `+${weightUnitLabel(rowUnit)}`}</button>
+                <button onClick={() => onSetWeightUnit && onSetWeightUnit(name, rowUnit === "kg" ? "lb" : "kg")} title="Switch default weight unit" style={{ width:44, height:36, flexShrink:0, background:"#111", border:`1px solid #333`, color:"#999", borderRadius:3, cursor:"pointer", ...mono, fontSize:11, fontWeight:700 }}>{weightUnitLabel(rowUnit)}</button>
                 <button onClick={() => onRemove(idx)} title="Remove exercise" style={{ width:36, height:36, background:"transparent", border:`1px solid #661111`, color:"#aa4444", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1 }}>×</button>
               </div>
             );
@@ -567,11 +604,11 @@
           <button onClick={() => onPick(null)} style={{ width:"100%", padding:10, background:"#0b1118", border:`1px dashed #2a3a4a`, color:"#8eb0c8", borderRadius:4, cursor:"pointer", fontSize:15, ...cond }}>+ ADD EXERCISE</button>
           {weightFor != null && (
             <DialPad
-              initialValue={kgToDisplayWeight(activeWeight, unit)}
+              initialValue={kgToDisplayWeight(activeWeight, activeUnit)}
               label={`${weightFor} — DEFAULT WEIGHT`}
-              unit={weightUnitLabel(unit)}
+              unit={weightUnitLabel(activeUnit)}
               deleteLabel="BODYWEIGHT"
-              onConfirm={(v) => { onSetWeight(weightFor, displayWeightToKg(v, unit)); setWeightFor(null); }}
+              onConfirm={(v) => { onSetWeight(weightFor, displayWeightToKg(v, activeUnit)); setWeightFor(null); }}
               onDelete={() => { onSetWeight(weightFor, 0); setWeightFor(null); }}
               onClose={() => setWeightFor(null)}
             />
@@ -583,7 +620,7 @@
     // WHY: Isolated sub-component so each block-type row stays readable. Each block has its own
     // cadence: offered every N days, repeated X times, then a pause of P days (repeat/pause only
     // matter when pause > 0 — with no pause a block simply recurs every N days indefinitely).
-    function TemplateRow({ template, allTemplates, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight, onReorderExercise, onSetRotationPartner, weightUnit, exerciseImages }) {
+    function TemplateRow({ template, allTemplates, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight, onSetExerciseWeightUnit, onReorderExercise, onSetRotationPartner, weightUnit, exerciseImages }) {
       const every = template.everyNDays, rep = template.repeatCount, pause = template.pauseDays;
       const group = template.rotationGroup;
       const groupmates = group ? (allTemplates || []).filter((t) => t.id !== template.id && t.rotationGroup === group) : [];
@@ -653,9 +690,11 @@
             templateId={template.id}
             exerciseNames={template.exerciseNames}
             exerciseWeights={template.exerciseWeights}
+            exerciseWeightUnits={template.exerciseWeightUnits}
             onPick={(exerciseIdx) => onPickExercise(template.id, exerciseIdx)}
             onRemove={(exerciseIdx) => onRemoveExercise(template.id, exerciseIdx)}
             onSetWeight={(name, kg) => onSetExerciseWeight(template.id, name, kg)}
+            onSetWeightUnit={(name, unit) => onSetExerciseWeightUnit(template.id, name, unit)}
             onReorder={(fromIdx, toIdx) => onReorderExercise(template.id, fromIdx, toIdx)}
             weightUnit={weightUnit}
             exerciseImages={exerciseImages}
@@ -702,6 +741,13 @@
         if (Number.isFinite(w) && w > 0) weights[name] = w; else delete weights[name];
         updateTemplate(templateId, { exerciseWeights: weights });
       };
+      const setTemplateExerciseWeightUnit = (templateId, name, unit) => {
+        const template = plan.templates.find((t) => t.id === templateId);
+        if (!template) return;
+        const units = { ...(template.exerciseWeightUnits || {}) };
+        units[name] = normalizeWeightUnit(unit);
+        updateTemplate(templateId, { exerciseWeightUnits: units });
+      };
       // WHY: Users think "make A alternate with B", not "assign both to group G" — so the control is
       // a simple picker, and this resolves it into the shared rotationGroup label underneath.
       // Joining an existing group reuses its label; joining two ungrouped blocks mints a fresh one;
@@ -743,6 +789,7 @@
               onPickExercise={(templateId, exerciseIdx) => setExercisePicker({ templateId, exerciseIdx })}
               onRemoveExercise={removeTemplateExercise}
               onSetExerciseWeight={setTemplateExerciseWeight}
+              onSetExerciseWeightUnit={setTemplateExerciseWeightUnit}
               onReorderExercise={reorderTemplateExercise}
               onSetRotationPartner={setRotationPartner}
               weightUnit={weightUnit}
@@ -782,9 +829,10 @@
     // WHY: Keep block instantiation isolated so future template attributes can be added without touching App.
     function buildTrainingBlocks(templates, fallbackNames, lastTargets, priorSessions) {
       const lastWeights = lastWeightsFromSessions(priorSessions || []);
+      const lastWeightUnits = lastWeightUnitsFromSessions(priorSessions || []);
       if (!templates.length) {
         const names = fallbackNames.length ? fallbackNames : ["Pull-ups"];
-        return [mkBlock(mkExFromTargets(names, lastTargets, lastWeights), "Training Block")];
+        return [mkBlock(mkExFromTargets(names, lastTargets, lastWeights, {}, lastWeightUnits), "Training Block")];
       }
       return templates.map((template) => {
         const lastMatchingBlock = findLastMatchingBlock(priorSessions, template);
@@ -795,6 +843,7 @@
           lastTargets,
           lastMatchingBlock,
           lastWeights,
+          lastWeightUnits,
           priorSessions,
         });
         return mkBlock(exercises, template.name, template.id);

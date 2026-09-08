@@ -92,6 +92,7 @@
                         onAddRepValue={onMornAddRepValue}
                         onToggleDone={onMornToggleDone}
                         onSetWeight={onMornSetWeight}
+                        onSetWeightUnit={onMornSetWeightUnit}
                         weightUnit={weightUnit}
                         exerciseImages={exerciseImages}
                         onComplete={toggleMorningComplete}
@@ -137,6 +138,7 @@
                   onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
                   onToggleExDone={(ei) => onBlkExDone(bi,ei)}
                   onSetWeight={(ei,w) => onBlkSetWeight(bi,ei,w)}
+                  onSetWeightUnit={(ei,u) => onBlkSetWeightUnit(bi,ei,u)}
                   weightUnit={weightUnit}
                   exerciseImages={exerciseImages}
                   onCheck={() => onCheckBlock(bi)}
