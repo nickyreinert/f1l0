@@ -135,42 +135,46 @@
 
       return (
         <div style={{ marginBottom:18 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
             <button onClick={() => !disabled && onToggleDone && onToggleDone()} title={ex.done ? "Done" : "Mark as done"} style={{ width:38, height:38, flexShrink:0, borderRadius:3, border:`2px solid ${ex.done ? ACC : "#666"}`, background: ex.done ? ACC : "transparent", cursor: disabled ? "default" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
               {ex.done && <span style={{ color:BG, fontSize:18, fontWeight:700, lineHeight:1 }}>✓</span>}
             </button>
             {thumb && (
-              <button onClick={onOpenModal} title={`${ex.name} image`} style={{ width:38, height:38, flexShrink:0, padding:0, overflow:"hidden", background:"#0a0a0a", border:`1px solid #333`, borderRadius:3, cursor:"pointer" }}>
+              <button onClick={onOpenModal} title={`${ex.name} image`} style={{ width:62, height:62, flexShrink:0, padding:0, overflow:"hidden", background:"#0a0a0a", border:`1px solid #333`, borderRadius:4, cursor:"pointer" }}>
                 <img src={thumb} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
               </button>
             )}
-            <button onClick={onOpenModal} style={{ flex:1, background:"#1a1a1a", border:`1px solid #333`, color:"#e0e0e0", padding:"9px 12px", fontSize:14, ...cond, borderRadius:3, outline:"none", textAlign:"left", cursor:"pointer", fontWeight:500 }}>{ex.name}</button>
-            {onSetWeight && (() => {
-              const hasWeight = typeof ex.weight === 'number' && ex.weight > 0;
-              const displayWeight = formatWeight(ex.weight, unit);
-              return (
-                <button onClick={() => !disabled && setWeightOpen(true)} title={hasWeight ? `${displayWeight} additional weight` : "Add weight (optional)"} style={{ height:38, flexShrink:0, padding:"0 10px", background: hasWeight ? "#141a05" : "#151515", border:`1px solid ${hasWeight ? ACC : "#333"}`, color: hasWeight ? ACC : "#777", borderRadius:3, cursor: disabled ? "default" : "pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasWeight ? displayWeight : `+${weightUnitLabel(unit)}`}</button>
-              );
-            })()}
-            {canDelete && <button onClick={() => setConfirmDelete(true)} title="Delete" style={{ width:38, height:38, background:CARD, border:`1px solid #444`, color:"#ff6b6b", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>}
-          </div>
-          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", opacity: ex.done ? 1 : 0.4 }}>
-            {ex.reps.map((v,i) => (
-              <RepTile key={i} value={v} disabled={disabled} onClick={() => openDial(i)} />
-            ))}
-            {showSuggestions && suggestedReps.map((v,i) => (
-              <button key={`suggested_${i}`} disabled={disabled} onClick={() => confirmSuggested(v)}
-                title="Tap to log this set — suggested from last time" style={{
-                width:54, height:54, borderRadius:4, flexShrink:0,
-                border:`2px dashed #4a5f18`,
-                background:"#0b1200",
-                color:"#6f8d18",
-                ...mono, fontWeight:700, fontSize:20,
-                cursor: disabled ? "default" : "pointer",
-                opacity:0.75,
-              }}>{v}</button>
-            ))}
-            <AddTile onClick={openNewDial} />
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+                <button onClick={onOpenModal} style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid #333`, color:"#e0e0e0", padding:"9px 12px", fontSize:14, ...cond, borderRadius:3, outline:"none", textAlign:"left", cursor:"pointer", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ex.name}</button>
+                {onSetWeight && (() => {
+                  const hasWeight = typeof ex.weight === 'number' && ex.weight > 0;
+                  const displayWeight = formatWeight(ex.weight, unit);
+                  return (
+                    <button onClick={() => !disabled && setWeightOpen(true)} title={hasWeight ? `${displayWeight} additional weight` : "Add weight (optional)"} style={{ height:38, flexShrink:0, padding:"0 10px", background: hasWeight ? "#141a05" : "#151515", border:`1px solid ${hasWeight ? ACC : "#333"}`, color: hasWeight ? ACC : "#777", borderRadius:3, cursor: disabled ? "default" : "pointer", ...mono, fontSize:13, fontWeight:700, whiteSpace:"nowrap" }}>{hasWeight ? displayWeight : `+${weightUnitLabel(unit)}`}</button>
+                  );
+                })()}
+                {canDelete && <button onClick={() => setConfirmDelete(true)} title="Delete" style={{ width:38, height:38, background:CARD, border:`1px solid #444`, color:"#ff6b6b", borderRadius:3, cursor:"pointer", fontSize:18, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>×</button>}
+              </div>
+              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", opacity: ex.done ? 1 : 0.4 }}>
+                {ex.reps.map((v,i) => (
+                  <RepTile key={i} value={v} disabled={disabled} onClick={() => openDial(i)} />
+                ))}
+                {showSuggestions && suggestedReps.map((v,i) => (
+                  <button key={`suggested_${i}`} disabled={disabled} onClick={() => confirmSuggested(v)}
+                    title="Tap to log this set — suggested from last time" style={{
+                    width:54, height:54, borderRadius:4, flexShrink:0,
+                    border:`2px dashed #4a5f18`,
+                    background:"#0b1200",
+                    color:"#6f8d18",
+                    ...mono, fontWeight:700, fontSize:20,
+                    cursor: disabled ? "default" : "pointer",
+                    opacity:0.75,
+                  }}>{v}</button>
+                ))}
+                <AddTile onClick={openNewDial} />
+              </div>
+            </div>
           </div>
           {isDialOpen && (
             <DialPad

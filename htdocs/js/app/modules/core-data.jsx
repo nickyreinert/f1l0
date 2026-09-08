@@ -390,10 +390,27 @@
       "Core": "img/exercises/core.png",
     };
 
+    function normalizeExerciseLookupName(name) {
+      return String(name || "")
+        .trim()
+        .replace(/[–—]/g, "-")
+        .replace(/\s+-\s+.*$/, "")
+        .replace(/\s+\d+\s*[x×]\s*[\d\s,-]+.*$/i, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    }
+
     function exerciseImageFor(name, exerciseImages) {
       const custom = exerciseImages && exerciseImages[name];
       if (custom) return custom;
-      return DEFAULT_EXERCISE_IMAGES[name] || null;
+      const direct = DEFAULT_EXERCISE_IMAGES[name];
+      if (direct) return direct;
+      const key = normalizeExerciseLookupName(name);
+      const customMatch = Object.keys(exerciseImages || {}).find((label) => normalizeExerciseLookupName(label) === key);
+      if (customMatch) return exerciseImages[customMatch];
+      const defaultMatch = Object.keys(DEFAULT_EXERCISE_IMAGES).find((label) => normalizeExerciseLookupName(label) === key);
+      return defaultMatch ? DEFAULT_EXERCISE_IMAGES[defaultMatch] : null;
     }
 
     // ─── Data shapes ─────────────────────────────────────────────────────────────
