@@ -583,7 +583,7 @@
     // WHY: Isolated sub-component so each block-type row stays readable. Each block has its own
     // cadence: offered every N days, repeated X times, then a pause of P days (repeat/pause only
     // matter when pause > 0 — with no pause a block simply recurs every N days indefinitely).
-    function TemplateRow({ template, allTemplates, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight, onReorderExercise, onSetRotationPartner, weightUnit }) {
+    function TemplateRow({ template, allTemplates, onChange, onRemove, canRemove, onPickExercise, onRemoveExercise, onSetExerciseWeight, onReorderExercise, onSetRotationPartner, weightUnit, exerciseImages }) {
       const every = template.everyNDays, rep = template.repeatCount, pause = template.pauseDays;
       const group = template.rotationGroup;
       const groupmates = group ? (allTemplates || []).filter((t) => t.id !== template.id && t.rotationGroup === group) : [];
