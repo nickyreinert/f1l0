@@ -499,7 +499,7 @@
 
     // ─── BlockPlanEditor UI components ──────────────────────────────────────────
 
-    function TemplateExerciseEditor({ templateId, exerciseNames, exerciseWeights, onPick, onRemove, onSetWeight, onReorder, weightUnit }) {
+    function TemplateExerciseEditor({ templateId, exerciseNames, exerciseWeights, onPick, onRemove, onSetWeight, onReorder, weightUnit, exerciseImages }) {
       const names = normalizeExerciseNames(exerciseNames);
       const weights = exerciseWeights && typeof exerciseWeights === "object" ? exerciseWeights : {};
       const [weightFor, setWeightFor] = useState(null);
@@ -516,6 +516,7 @@
             const w = Number(weights[name]);
             const hasW = Number.isFinite(w) && w > 0;
             const displayWeight = formatWeight(w, unit);
+            const thumb = exerciseImageFor(name, exerciseImages);
             return (
               <div key={`${name}_${idx}`} data-template-exercise-id={templateId} data-template-exercise-row={idx} style={{
                 display:"flex", gap:8, alignItems:"center", marginBottom:8,
@@ -549,6 +550,11 @@
                     setDragOver(null);
                   }}
                 >⠿</div>
+                {thumb && (
+                  <button onClick={() => onPick(idx)} title={`${name} image`} style={{ width:36, height:36, flexShrink:0, padding:0, overflow:"hidden", background:"#0a0a0a", border:`1px solid #333`, borderRadius:3, cursor:"pointer" }}>
+                    <img src={thumb} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                  </button>
+                )}
                 <button
                   onClick={() => onPick(idx)}
                   style={{ flex:1, minWidth:0, background:"#1a1a1a", border:`1px solid ${BDR}`, color:"#ddd", padding:"9px 10px", borderRadius:3, cursor:"pointer", fontSize:16, textAlign:"left", boxSizing:"border-box", ...cond, fontWeight:700 }}
@@ -652,6 +658,7 @@
             onSetWeight={(name, kg) => onSetExerciseWeight(template.id, name, kg)}
             onReorder={(fromIdx, toIdx) => onReorderExercise(template.id, fromIdx, toIdx)}
             weightUnit={weightUnit}
+            exerciseImages={exerciseImages}
           />
         </div>
       );
@@ -738,7 +745,8 @@
               onSetExerciseWeight={setTemplateExerciseWeight}
               onReorderExercise={reorderTemplateExercise}
               onSetRotationPartner={setRotationPartner}
-              weightUnit={weightUnit} />
+              weightUnit={weightUnit}
+              exerciseImages={exerciseImages} />
           ))}
           <button onClick={addTemplate} style={{ width:"100%", padding:12, background:CARD, border:`1px dashed ${BDR}`, color:"#888", borderRadius:4, cursor:"pointer", fontSize:17, ...cond, marginBottom:4 }}>+ ADD BLOCK TYPE</button>
           <div style={{ ...mono, fontSize:12, color:"#666", marginBottom:4 }}>Each block runs on its own cadence: every N days, repeated, then a pause. Set "ROTATES WITH" to make two blocks alternate sessions instead of both being due the same day.</div>

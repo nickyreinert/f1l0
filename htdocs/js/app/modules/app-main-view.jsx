@@ -93,6 +93,7 @@
                         onToggleDone={onMornToggleDone}
                         onSetWeight={onMornSetWeight}
                         weightUnit={weightUnit}
+                        exerciseImages={exerciseImages}
                         onComplete={toggleMorningComplete}
                         onRepAdded={() => { setRestTimer(restSecs); setRestTimerKey(k => k+1); }}
                         showComplete={!mornDone}
@@ -137,6 +138,7 @@
                   onToggleExDone={(ei) => onBlkExDone(bi,ei)}
                   onSetWeight={(ei,w) => onBlkSetWeight(bi,ei,w)}
                   weightUnit={weightUnit}
+                  exerciseImages={exerciseImages}
                   onCheck={() => onCheckBlock(bi)}
                   onUncheck={() => onUncheckBlock(bi)}
                   onToggleCollapse={() => onBlkCollapse(bi)}

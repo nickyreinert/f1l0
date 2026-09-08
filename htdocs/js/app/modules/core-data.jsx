@@ -348,12 +348,53 @@
 
     // ─── Exercise categories ─────────────────────────────────────────────────────
     const EXERCISE_CATEGORIES = {
-      "Pull":      ["Pull-ups", "Table Rows", "Muscle-ups", "Hanging Leg Raises"],
-      "Push":     ["Push-ups", "Pike Push-ups", "Handstand Push-ups", "Dips", "Tricep Dips"],
-      "Legs":     ["Squats", "Lunges"],
-      "Core":     ["Crunches", "Leg Raises", "Plank (sets)", "L-Sit"],
+      "Pull":      ["Pull-ups", "Ring Rows", "Ring Bows", "Band Straight-Arm Pulldowns", "Band Face Pulls", "Band Curls", "Reverse Band Curls", "Table Rows", "Muscle-ups", "Hanging Leg Raises"],
+      "Push":     ["Push-ups", "Weighted Push-ups", "Pike Push-ups", "Ring Push-ups", "Band Lateral Raises", "Band Triceps Pushdowns", "Handstand Push-ups", "Dips", "Tricep Dips"],
+      "Legs":     ["Squats", "Pistol Squats", "Single-Leg RDL", "Glute Bridges", "Lunges"],
+      "Core":     ["Core", "Crunches", "Leg Raises", "Plank (sets)", "L-Sit"],
       "Full Body": ["Burpees", "Mountain Climbers"],
     };
+
+    const DEFAULT_EXERCISE_IMAGES = {
+      "Knee-Claps": "img/exercises/knee-claps.png",
+      "Knee Claps": "img/exercises/knee-claps.png",
+      "Squats": "img/exercises/squats.png",
+      "Kniebeugen": "img/exercises/squats.png",
+      "Knee-Elbow": "img/exercises/knee-elbow.png",
+      "Knee-2-Elbow": "img/exercises/knee-elbow.png",
+      "Walkout": "img/exercises/walkout.png",
+      "Plank Toe Touches": "img/exercises/plank-toe-touches.png",
+      "Single-Leg Romanian Deadlift": "img/exercises/single-leg-romanian-deadlift.png",
+      "Bird-Dog": "img/exercises/bird-dog.png",
+      "Pull-ups": "img/exercises/pull-ups.png",
+      "Klimmzüge": "img/exercises/pull-ups.png",
+      "Ring Bows": "img/exercises/ring-bows.png",
+      "Ring Rows": "img/exercises/ring-rows.png",
+      "Push-ups": "img/exercises/push-ups.png",
+      "Liegestütze": "img/exercises/push-ups.png",
+      "Weighted Push-ups": "img/exercises/weighted-push-ups.png",
+      "Pike Push-ups": "img/exercises/pike-push-ups.png",
+      "Ring Push-ups": "img/exercises/ring-push-ups.png",
+      "Band Lateral Raises": "img/exercises/band-lateral-raises.png",
+      "Band Triceps Pushdowns": "img/exercises/band-triceps-pushdowns.png",
+      "Band Straight-Arm Pulldowns": "img/exercises/band-straight-arm-pulldowns.png",
+      "Band Straight Arm Pulldowns": "img/exercises/band-straight-arm-pulldowns.png",
+      "Band Curls": "img/exercises/band-curls.png",
+      "Reverse Band Curls": "img/exercises/reverse-band-curls.png",
+      "Band Face Pulls": "img/exercises/band-face-pulls.png",
+      "Pistol Squat": "img/exercises/pistol-squat.png",
+      "Pistol Squats": "img/exercises/pistol-squat.png",
+      "Glute Bridges": "img/exercises/glute-bridges.png",
+      "Single-Leg RDL": "img/exercises/single-leg-romanian-deadlift.png",
+      "Hanging Leg Raises": "img/exercises/hanging-leg-raises.png",
+      "Core": "img/exercises/core.png",
+    };
+
+    function exerciseImageFor(name, exerciseImages) {
+      const custom = exerciseImages && exerciseImages[name];
+      if (custom) return custom;
+      return DEFAULT_EXERCISE_IMAGES[name] || null;
+    }
 
     // ─── Data shapes ─────────────────────────────────────────────────────────────
     const mkEx      = (name = "Push-ups", t = 10) => ({ name, target: t, reps: [t], done: false });

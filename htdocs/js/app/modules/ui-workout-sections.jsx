@@ -86,7 +86,9 @@
                       {search.trim() ? "NO RESULTS" : "NO EXERCISES"}
                     </div>
                   : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(clamp(180px, 24%, 280px), 1fr))", gap:10 }}>
-                      {displayed.map(ex => (
+                      {displayed.map(ex => {
+                        const imgSrc = exerciseImageFor(ex, exerciseImages);
+                        return (
                         <button key={ex} onClick={() => { onSelect(ex); onClose(); }}
                           style={{ position:"relative", background:CARD, border:`1px solid ${BDR}`, borderRadius:6,
                             cursor:"pointer", padding:0, overflow:"hidden", textAlign:"center",
@@ -94,8 +96,8 @@
                           {/* Illustration area */}
                           <div style={{ height:80, background:"#0d0d0d", display:"flex", alignItems:"center",
                             justifyContent:"center", overflow:"hidden", flexShrink:0 }}>
-                            {exerciseImages?.[ex]
-                              ? <img src={exerciseImages[ex]} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                            {imgSrc
+                              ? <img src={imgSrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
                               : <span style={{ fontSize:42, opacity:0.12 }}>◉</span>}
                           </div>
                           {/* Exercise name */}
@@ -115,7 +117,8 @@
                             📷
                           </div>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                 }
               </div>
@@ -145,7 +148,7 @@
     }
 
     // ─── ExercisesSection ────────────────────────────────────────────────────────
-    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onAddRepValue, onComplete, onRepAdded, onToggleDone, onSetWeight, showComplete, weightUnit }) {
+    function ExercisesSection({ exercises, done, onSetRep, onDelRep, onAddExercise, onOpenModal, onDeleteExercise, onAddRep, onAddRepValue, onComplete, onRepAdded, onToggleDone, onSetWeight, showComplete, weightUnit, exerciseImages }) {
       const iconBtn = (icon, label, onClick, opts = {}) => (
         <button onClick={onClick} title={label} style={{
           flex:1, height:56, background:"transparent",
@@ -172,6 +175,7 @@
               onToggleDone={() => onToggleDone(ei)}
               onSetWeight={onSetWeight ? (w => onSetWeight(ei, w)) : undefined}
               weightUnit={weightUnit}
+              exerciseImages={exerciseImages}
               canDelete={exercises.length > 1}
             />
           ))}
@@ -190,7 +194,7 @@
     function BlockCard({ block, index, onSetRep, onDelRep, onAddExercise, onOpenModal,
                          onDeleteExercise, onAddRep, onAddRepValue, onRepAdded, onToggleExDone, onCheck, onUncheck,
                          onToggleCollapse, onEditStart, canDeleteBlock, onDeleteBlock,
-                         canResetToTemplate, onResetToTemplate, onSetWeight, weightUnit }) {
+                         canResetToTemplate, onResetToTemplate, onSetWeight, weightUnit, exerciseImages }) {
       const [confirmDel, setConfirmDel] = useState(false);
       const [confirmReset, setConfirmReset] = useState(false);
       const checked = block.startedAt !== null;
@@ -241,6 +245,7 @@
                   onToggleDone={() => onToggleExDone(ei)}
                   onSetWeight={onSetWeight ? (w => onSetWeight(ei, w)) : undefined}
                   weightUnit={weightUnit}
+                  exerciseImages={exerciseImages}
                   canDelete={block.exercises.length > 1}
                 />
               ))}

@@ -79,12 +79,13 @@
     }
 
     // ─── ExRow ───────────────────────────────────────────────────────────────────
-    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onAddRepValue, onRepAdded, onToggleDone, onSetWeight, weightUnit }) {
+    function ExRow({ ex, disabled, onSetRep, onDelRep, onOpenModal, onDelete, canDelete, onAddRep, onAddRepValue, onRepAdded, onToggleDone, onSetWeight, weightUnit, exerciseImages }) {
       const [dialIdx, setDialIdx] = useState(null);
       const [pendingNewRep, setPendingNewRep] = useState(false);
       const [confirmDelete, setConfirmDelete] = useState(false);
       const [weightOpen, setWeightOpen] = useState(false);
       const unit = normalizeWeightUnit(weightUnit);
+      const thumb = exerciseImageFor(ex.name, exerciseImages);
       const openDial = (i) => { if (!disabled) setDialIdx(i); };
       const closeDial = () => { setDialIdx(null); setPendingNewRep(false); };
       const confirmRep = (v) => { if (dialIdx !== null) { onSetRep(dialIdx, v); setDialIdx(null); setPendingNewRep(false); } };
@@ -138,6 +139,11 @@
             <button onClick={() => !disabled && onToggleDone && onToggleDone()} title={ex.done ? "Done" : "Mark as done"} style={{ width:38, height:38, flexShrink:0, borderRadius:3, border:`2px solid ${ex.done ? ACC : "#666"}`, background: ex.done ? ACC : "transparent", cursor: disabled ? "default" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
               {ex.done && <span style={{ color:BG, fontSize:18, fontWeight:700, lineHeight:1 }}>✓</span>}
             </button>
+            {thumb && (
+              <button onClick={onOpenModal} title={`${ex.name} image`} style={{ width:38, height:38, flexShrink:0, padding:0, overflow:"hidden", background:"#0a0a0a", border:`1px solid #333`, borderRadius:3, cursor:"pointer" }}>
+                <img src={thumb} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+              </button>
+            )}
             <button onClick={onOpenModal} style={{ flex:1, background:"#1a1a1a", border:`1px solid #333`, color:"#e0e0e0", padding:"9px 12px", fontSize:14, ...cond, borderRadius:3, outline:"none", textAlign:"left", cursor:"pointer", fontWeight:500 }}>{ex.name}</button>
             {onSetWeight && (() => {
               const hasWeight = typeof ex.weight === 'number' && ex.weight > 0;
