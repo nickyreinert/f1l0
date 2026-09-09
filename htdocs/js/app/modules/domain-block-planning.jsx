@@ -152,6 +152,11 @@
     }
 
     function lastTrainedTemplateIdInGroup(groupTemplates, priorSessions) {
+      const latest = lastTrainedTemplateInGroup(groupTemplates, priorSessions);
+      return latest ? latest.templateId : null;
+    }
+
+    function lastTrainedTemplateInGroup(groupTemplates, priorSessions) {
       const memberIds = new Set(groupTemplates.map((t) => t.id));
       let latest = null; // { date, templateId }
       (priorSessions || []).forEach((session) => {
@@ -161,7 +166,7 @@
           if (!latest || session.date > latest.date) latest = { date: session.date, templateId: block.templateId };
         });
       });
-      return latest ? latest.templateId : null;
+      return latest;
     }
 
     // `activeTemplates` are the templates already deemed due today by resolveActiveTemplates.
@@ -214,6 +219,19 @@
       return [...seen].sort((a, b) => a.localeCompare(b));
     }
 
+    function rotationGroupOccurrenceDates(groupTemplates, priorSessions) {
+      const memberIds = new Set((groupTemplates || []).map((t) => t.id));
+      const seen = new Set();
+      (priorSessions || []).forEach((session) => {
+        if (!session?.date) return;
+        const matched = sessionBlocks(migrateSession(session)).some((block) =>
+          block?.templateId && memberIds.has(block.templateId) && isBlockTrained(block)
+        );
+        if (matched) seen.add(session.date);
+      });
+      return [...seen].sort((a, b) => a.localeCompare(b));
+    }
+
     function currentTemplateRunCount(template, occurrenceDates) {
       if (!occurrenceDates.length) return 0;
       let count = 1;
@@ -225,6 +243,19 @@
       return count;
     }
 
+    function isDueAfterOccurrences(template, dateStr, anchorDate, occurrenceDates) {
+      if (!occurrenceDates.length) return isTemplateActiveOnDate(template, dateStr, anchorDate);
+      const lastDate = occurrenceDates[occurrenceDates.length - 1];
+      const daysSince = dayNumber(dateStr) - dayNumber(lastDate);
+      if (daysSince <= 0) return false;
+      const runCount = currentTemplateRunCount(template, occurrenceDates);
+      const phase = ((Math.max(1, runCount) - 1) % template.repeatCount) + 1;
+      const requiredGap = phase === template.repeatCount
+        ? template.everyNDays + template.pauseDays
+        : template.everyNDays;
+      return daysSince >= requiredGap;
+    }
+
     // WHY: Auto schedule should advance from the last prior trained block. A saved rest day
     // before the selected date is skipped, then the block's own repeat/pause rule decides
     // whether it is due again.
@@ -232,22 +263,42 @@
       const normalizedTemplates = (templates || []).map(normalizeTemplate).filter(Boolean);
       if (!normalizedTemplates.length) return [];
 
-      const due = normalizedTemplates.filter((template) => {
+      const dueIndependent = normalizedTemplates.filter((template) => {
+        if (template.rotationGroup) return false;
         if (!isTemplateActiveForWeek(template, dateStr)) return false;
         const occurrences = templateOccurrenceDates(template, priorSessions);
         if (!occurrences.length) return isTemplateActiveOnDate(template, dateStr, anchorDate);
-        const lastDate = occurrences[occurrences.length - 1];
-        const daysSince = dayNumber(dateStr) - dayNumber(lastDate);
-        if (daysSince <= 0) return false;
-        const runCount = currentTemplateRunCount(template, occurrences);
-        const phase = ((Math.max(1, runCount) - 1) % template.repeatCount) + 1;
-        const requiredGap = phase === template.repeatCount
-          ? template.everyNDays + template.pauseDays
-          : template.everyNDays;
-        return daysSince >= requiredGap;
+        return isDueAfterOccurrences(template, dateStr, anchorDate, occurrences);
       });
 
-      return pickRotationWinners(due, normalizedTemplates, priorSessions);
+      const groups = {};
+      normalizedTemplates.forEach((template) => {
+        if (!template.rotationGroup) return;
+        (groups[template.rotationGroup] ||= []).push(template);
+      });
+
+      const dueGrouped = [];
+      Object.keys(groups).forEach((group) => {
+        const members = groups[group];
+        const weekMembers = members.filter((template) => isTemplateActiveForWeek(template, dateStr));
+        if (!weekMembers.length) return;
+
+        const occurrences = rotationGroupOccurrenceDates(members, priorSessions);
+        if (!occurrences.length) {
+          dueGrouped.push(...weekMembers.filter((template) => isTemplateActiveOnDate(template, dateStr, anchorDate)));
+          return;
+        }
+
+        const latest = lastTrainedTemplateInGroup(members, priorSessions);
+        const lastTemplate = members.find((template) => template.id === latest?.templateId) || weekMembers[0];
+        if (!isDueAfterOccurrences(lastTemplate, dateStr, anchorDate, occurrences)) return;
+
+        // Once the rotation slot is due, every week-eligible member is a candidate;
+        // pickRotationWinners then chooses the successor of the last trained member.
+        dueGrouped.push(...weekMembers);
+      });
+
+      return pickRotationWinners([...dueIndependent, ...dueGrouped], normalizedTemplates, priorSessions);
     }
 
     function resolveManualTemplates(templates, templateIds) {
