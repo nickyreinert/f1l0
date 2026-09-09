@@ -607,8 +607,9 @@
               initialValue={kgToDisplayWeight(activeWeight, activeUnit)}
               label={`${weightFor} — DEFAULT WEIGHT`}
               unit={weightUnitLabel(activeUnit)}
+              onUnitChange={(nextUnit) => onSetWeightUnit && onSetWeightUnit(weightFor, nextUnit)}
               deleteLabel="BODYWEIGHT"
-              onConfirm={(v) => { onSetWeight(weightFor, displayWeightToKg(v, activeUnit)); setWeightFor(null); }}
+              onConfirm={(v, selectedUnit) => { onSetWeight(weightFor, displayWeightToKg(v, selectedUnit)); setWeightFor(null); }}
               onDelete={() => { onSetWeight(weightFor, 0); setWeightFor(null); }}
               onClose={() => setWeightFor(null)}
             />

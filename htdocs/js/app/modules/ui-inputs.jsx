@@ -1,13 +1,17 @@
     // ─── DialPad ─────────────────────────────────────────────────────────────────
-    function DialPad({ initialValue, onConfirm, onDelete, onClose, label, unit, deleteLabel }) {
+    function DialPad({ initialValue, onConfirm, onDelete, onClose, label, unit, onUnitChange, deleteLabel }) {
       const [val, setVal] = useState(String(initialValue ?? ""));
+      const [localUnit, setLocalUnit] = useState(() => normalizeWeightUnit(unit));
       const press = d => setVal(v => v.length >= 4 ? v : v + d);
       const back  = () => setVal(v => v.slice(0, -1));
       const confirm = () => {
         const n = parseFloat(val);
-        if (!isNaN(n) && n >= 1) onConfirm(n);
-        else if (val === "") onConfirm(initialValue);
+        if (!isNaN(n) && n >= 1) onConfirm(n, localUnit);
+        else if (val === "") onConfirm(initialValue, localUnit);
       };
+      useEffect(() => {
+        if (unit) setLocalUnit(normalizeWeightUnit(unit));
+      }, [unit]);
       useEffect(() => {
         const handleKeyDown = (e) => {
           if (e.key === "Escape") { e.preventDefault(); onClose(); }
@@ -18,19 +22,42 @@
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-      }, [val]);
+      }, [val, localUnit]);
       const btnStyle = (col) => ({
         flex:1, height:64, background:"#1a1a1a", border:`1px solid #333`,
         color: col || "#f0f0ed", fontSize:26, fontWeight:700, borderRadius:4,
         cursor:"pointer", ...mono, minWidth:0,
       });
+      const switchUnit = (nextUnit) => {
+        if (!onUnitChange || nextUnit === localUnit) return;
+        const n = parseFloat(val);
+        if (!isNaN(n) && n > 0) {
+          const kg = displayWeightToKg(n, localUnit);
+          const nextVal = kgToDisplayWeight(kg, nextUnit);
+          setVal(nextVal === "" ? "" : String(nextVal));
+        }
+        setLocalUnit(nextUnit);
+        onUnitChange(nextUnit);
+      };
       return (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"flex-end", zIndex:2000 }} onClick={onClose}>
           <div style={{ background:"#111", width:"100%", borderRadius:"14px 14px 0 0", padding:"20px 16px 32px" }} onClick={e => e.stopPropagation()}>
             {label && <div style={{ ...cond, fontSize:15, letterSpacing:3, color:"#888", textAlign:"center", marginBottom:10, fontWeight:700 }}>{label}</div>}
+            {onUnitChange && (
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+                {WEIGHT_UNITS.map((u) => {
+                  const active = localUnit === u;
+                  return (
+                    <button key={u} onClick={() => switchUnit(u)} style={{ height:46, background: active ? ACC : "#151515", border:`1px solid ${active ? ACC : "#333"}`, color: active ? BG : "#aaa", borderRadius:4, cursor:"pointer", ...mono, fontSize:15, fontWeight:900, letterSpacing:2 }}>
+                      {weightUnitLabel(u)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, minHeight:56, background:"#0a0a0a", borderRadius:6, border:`1px solid #333` }}>
               <span style={{ ...mono, fontSize:40, fontWeight:700, color: val ? "#fff" : "#555", letterSpacing:2 }}>{val || "—"}</span>
-              {unit && <span style={{ ...mono, fontSize:22, fontWeight:700, color:"#666", marginLeft:8 }}>{unit}</span>}
+              {unit && <span style={{ ...mono, fontSize:22, fontWeight:700, color:"#666", marginLeft:8 }}>{weightUnitLabel(localUnit)}</span>}
             </div>
             <div style={{ display:"flex", gap:8, marginBottom:8 }}>
               {["1","2","3"].map(d => <button key={d} style={btnStyle()} onClick={() => press(d)}>{d}</button>)}
@@ -204,8 +231,9 @@
               initialValue={kgToDisplayWeight(ex.weight, unit)}
               label={`${ex.name} — WEIGHT`}
               unit={weightUnitLabel(unit)}
+              onUnitChange={(nextUnit) => onSetWeightUnit && onSetWeightUnit(nextUnit)}
               deleteLabel="BODYWEIGHT"
-              onConfirm={(v) => { if (onSetWeight) onSetWeight(displayWeightToKg(v, unit)); setWeightOpen(false); }}
+              onConfirm={(v, selectedUnit) => { if (onSetWeight) onSetWeight(displayWeightToKg(v, selectedUnit)); setWeightOpen(false); }}
               onDelete={() => { if (onSetWeight) onSetWeight(0); setWeightOpen(false); }}
               onClose={() => setWeightOpen(false)}
             />
